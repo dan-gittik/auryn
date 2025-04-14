@@ -1,0 +1,5 @@
+%extend 03c_base.template
+%define head
+    <title>My Webpage</title>
+%define body
+    <p>Hello, world!</p>
