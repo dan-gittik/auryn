@@ -2,14 +2,16 @@ from typing import Iterator
 
 
 def interpolate(s: str, delimiters: str) -> Iterator[tuple[str, bool]]:
+    if delimiters.count(" ") != 1:
+        raise ValueError(f"invalid delimiters {delimiters!r} (expected space-separated pair)")
     a, b = delimiters.split(" ")
     if s == a or s == b or (a not in s and b not in s):
         yield s, False
         return
-    L, aL, bL = len(s), len(a), len(b)
+    sL, aL, bL = len(s), len(a), len(b)
     i = 0
     text = []
-    while i < L:
+    while i < sL:
         if s[i : i + aL] == a:
             if s[i + aL : i + 2 * aL] == a:
                 text.append(a)
@@ -28,7 +30,7 @@ def interpolate(s: str, delimiters: str) -> Iterator[tuple[str, bool]]:
                 text.append(b)
                 i += 2 * bL
             else:
-                raise ValueError(f"unmatched {b!r} at offset {i}")
+                raise ValueError(f"unable to interpolate {s!r}: unmatched {b!r} at offset {i}")
         else:
             text.append(s[i])
             i += 1
@@ -53,15 +55,15 @@ def skip_expression(s, a, b, i):
         else:
             i += 1
     else:
-        raise ValueError(f"unmatched {a!r} at offset {i}")
+        raise ValueError(f"unable to interpolate {s!r}: unmatched {a!r} at offset {i}")
     return i
 
 
 def skip_string(s, i):
-    L = len(s)
+    sL = len(s)
     q = s[i]
     i += 1
-    while i < L:
+    while i < sL:
         if s[i] == q:
             i += 1
             break
@@ -70,5 +72,5 @@ def skip_string(s, i):
         else:
             i += 1
     else:
-        raise ValueError(f"unterminated quote at offset {i}")
+        raise ValueError(f"unable to interpolate {s!r}: unterminated quote at offset {i}")
     return i

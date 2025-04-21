@@ -28,7 +28,8 @@ def cli() -> None:
 
     transpile_parser = subparsers.add_parser("transpile", help="transpile a template")
     transpile_parser.add_argument("path", help="template path")
-    transpile_parser.add_argument("-l", "--load", default=None, help="additional meta-module path or name")
+    transpile_parser.add_argument("-s", "--sourcemap", action="store_true", help="add source comments")
+    transpile_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
     transpile_parser.add_argument(
         "-n",
         "--no-common",
@@ -47,7 +48,7 @@ def cli() -> None:
     render_parser = subparsers.add_parser("render", help="render a template")
     render_parser.add_argument("path", help="template path")
     render_parser.add_argument("-c", "--context", default=None, help="context path")
-    render_parser.add_argument("-l", "--load", default=None, help="additional meta-module path or name")
+    render_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
     render_parser.add_argument(
         "-n",
         "--no-common",
@@ -62,8 +63,8 @@ def cli() -> None:
         help="additional context as key=value pairs",
     )
 
-    evaluate_parser = subparsers.add_parser("evaluate", help="evaluate a template")
-    evaluate_parser.add_argument("path", help="template path")
+    evaluate_parser = subparsers.add_parser("evaluate", help="evaluate junk code")
+    evaluate_parser.add_argument("path", help="junk code path")
     evaluate_parser.add_argument("-c", "--context", default=None, help="context path")
     evaluate_parser.add_argument(
         "context_kwargs",
@@ -78,6 +79,7 @@ def cli() -> None:
         case "transpile":
             code = transpile(
                 pathlib.Path(args.path).absolute(),
+                sourcemap=args.sourcemap,
                 load=args.load,
                 load_common=not args.no_common,
                 standalone=args.standalone,

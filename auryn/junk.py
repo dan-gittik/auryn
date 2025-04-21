@@ -1,19 +1,19 @@
 from __future__ import annotations
 
 import contextlib
-import inspect
 import pathlib
 import re
 import sys
-from typing import Any, Callable, ClassVar, Iterator, Protocol
+from typing import Any, Callable, ClassVar, Iterable, Iterator, Protocol
 
 from .collect import collect_definitions, collect_global_references
-from .interpolate import interpolate as interpolate_
 from .lines import Line, Lines
-from .utils import trim
+from .interpolate import interpolate as interpolate_
+from .utils import and_, split_lines
 
 type Transpiler = Callable[[Junk, str], None]
 type MetaCallback = Callable[[Junk], None]
+type MetaModule = str | pathlib.Path | dict[str, Any] | Iterable[MetaModule]
 
 
 class MetaFunction(Protocol):
@@ -42,110 +42,93 @@ class Junk:
 
     code_prefix: ClassVar[str] = "!"
     meta_prefix: ClassVar[str] = "%"
-    builtins_directory: ClassVar[pathlib.Path] = pathlib.Path(__file__).parent / "builtins"
+    comment_prefix: ClassVar[str] = "#"
+    meta_function_prefix: ClassVar[str] = "meta_"
+    eval_function_prefix: ClassVar[str] = "eval_"
+    on_load_function_name: ClassVar[str] = "on_load"
+    builtins_directories: ClassVar[list[pathlib.Path]] = [pathlib.Path(__file__).parent / "builtins"]
+    add_sourcemap_by_default: ClassVar[bool] = True
     load_common_by_default: ClassVar[bool] = True
     interpolate_by_default: ClassVar[bool] = True
 
     class StopEvaluation(Exception):
         pass
 
-    def __init__(self, source: str, lines: Lines, path: str | pathlib.Path) -> None:
-        self.source = source
-        self.lines = lines
-        self.path = pathlib.Path(path)
+    def __init__(
+            self,
+            template: str | pathlib.Path | None = None,
+            *,
+            sourcemap: bool | None = None,
+            stack_level: int = 0,
+    ) -> None:
+        if sourcemap is None:
+            sourcemap = self.add_sourcemap_by_default
+        self.lines = Lines(template, stack_level=stack_level + 1)
+        self.path = self.lines.path or self.lines.source_path
         self.code_indent = 0
         self.text_indent = 0
+        self.output_indent = 0
+        self.sourcemap = sourcemap
         self.code_lines: list[str] = []
         self.output: list[str] = []
         self.transpilers: dict[str, Transpiler] = {
-            self.code_prefix: _transpile_code,
-            self.meta_prefix: _transpile_meta,
-            "": _transpile_text,
+            self.code_prefix: code,
+            self.meta_prefix: meta,
+            "": text,
         }
         self.meta_namespace: dict[str, MetaFunction] = {
-            "load": _load,
+            "load": load,
         }
         self.meta_state: dict[str, Any] = {}
         self.meta_callbacks: list[MetaCallback] = []
         self.eval_namespace: dict[str, Any] = {
-            "emit": self.emit,
-            "indent": self.indent,
+            "junk": self,
+            "emit": self.eval_emit,
+            "indent": self.eval_indent,
             "StopEvaluation": self.StopEvaluation,
         }
         self.interpolation: str = "{ }"
         self.inline: bool = False
         self._active_lines: list[Line] = []
 
+    def __str__(self) -> str:
+        if self.path != self.lines.source_path:
+            return f"junk of {self.path} at {self.source}"
+        return f"junk at {self.source}"
+
     def __repr__(self) -> str:
-        if self.path:
-            return f"<junk of {self.path} at {self.source}>"
-        return f"<junk at {self.source}>"
-
-    @classmethod
-    def transpiler(cls, prefix: str = "") -> Callable[[Transpiler], Transpiler]:
-        def decorator(transpiler: Transpiler) -> Transpiler:
-            cls.transpilers[prefix] = transpiler
-            return transpiler
-
-        return decorator
-
-    @classmethod
-    def from_file(cls, path: str | pathlib.Path, *, stack_level: int = 0) -> Junk:
-        source, source_path = cls._get_source(stack_level + 1)
-        path = source_path.parent / path
-        lines = Lines.from_file(path)
-        return cls(source, lines, path)
-
-    @classmethod
-    def from_string(cls, string: str, *, stack_level: int = 0) -> Junk:
-        source, path = cls._get_source(stack_level + 1)
-        lines = Lines.from_string(source, string)
-        return cls(source, lines, path)
-
-    @classmethod
-    def evaluate_standalone(
-        cls,
-        path: str | pathlib.Path,
-        context: dict[str, Any] | None = None,
-        /,
-        *,
-        stack_level: int = 0,
-        **context_kwargs: Any,
-    ) -> str:
-        path = pathlib.Path(path)
-        source, _ = cls._get_source(stack_level=stack_level + 1)
-        junk = cls(source, Lines([]), path)
-        junk.code_lines = path.read_text().splitlines()
-        return junk.evaluate(context, junk=junk, **context_kwargs)
-
-    @classmethod
-    def _get_source(cls, stack_level: int) -> tuple[str, pathlib.Path]:
-        frame = inspect.currentframe()
-        for _ in range(stack_level + 1):
-            frame = frame and frame.f_back
-        if not frame:
-            raise ValueError("unable to infer source")
-        path = pathlib.Path(frame.f_code.co_filename)
-        return f"{path.stem}:{frame.f_lineno}", path
-
+        return f"<{self}>"
+    
+    @property
+    def source_path(self) -> pathlib.Path:
+        return self.lines.source_path
+    
+    @property
+    def source_line(self) -> int:
+        return self.lines.source_line
+    
+    @property
+    def source(self) -> str:
+        return self.lines.source
+    
     @property
     def line(self) -> Line:
         return self._active_lines[-1]
-
+    
     def transpile(
         self,
         lines: Lines | None = None,
-        load: str | pathlib.Path | dict[str, Any] | None = None,
+        load: MetaModule | None = None,
         load_common: bool | None = None,
     ) -> str:
         if lines is None:
             lines = self.lines
             if load_common is None:
                 load_common = self.load_common_by_default
-            if load is not None:
-                _load(self, load)
             if load_common:
-                _load(self, "common")
+                self.meta_namespace["load"](self, "common")
+            if load is not None:
+                self.meta_namespace["load"](self, load)
         for line in lines:
             with self._set_active_line(line):
                 for prefix, transpile in sorted(
@@ -158,16 +141,21 @@ class Junk:
                         transpile(self, content)
                         break
                 else:
-                    raise ValueError(f"unable to transpile {line}")
+                    transpilers = (f"{transpile.__name__} ({prefix})" for prefix, transpile in self.transpilers.items())
+                    raise ValueError(f"unable to transpile {line} (considered {and_(transpilers)})")
         for callback in self.meta_callbacks:
             callback(self)
         return self.to_string()
 
     def to_string(self, standalone: bool = False) -> str:
-        code = "\n".join(self.code_lines)
+        code = "\n".join(map(str, self.code_lines))
         if standalone:
             code = self._generate_intro(code)
         return code
+
+    def emit_code(self, code: str) -> None:
+        for _, code_line in split_lines(code):
+            self.code_lines.append(self.code_indent * " " + code_line + self._source_comment)
 
     @contextlib.contextmanager
     def increase_code_indent(self) -> Iterator[None]:
@@ -177,17 +165,15 @@ class Junk:
         finally:
             self.code_indent -= 4
 
-    def emit_code(self, code: str) -> None:
-        for code_line in trim(code):
-            self.code_lines.append(self.code_indent * " " + code_line)
-
     def emit_text(
         self,
-        indent: int,
+        indent: int | None,
         text: str,
         interpolate: bool | None = None,
         newline: bool = True,
     ) -> None:
+        if indent is not None:
+            indent += self.text_indent
         if interpolate is None:
             interpolate = self.interpolate_by_default
         if not interpolate:
@@ -205,27 +191,27 @@ class Junk:
             args.append("inline=True")
         self.emit_code(f'emit({indent}, {", ".join(args)})')
 
-    def emit(
-        self,
-        indent: int,
-        *args: Any,
-        inline: bool = False,
-        newline: bool = True,
-    ) -> None:
-        if inline:
-            self.output.append("".join(map(str, args)))
+    def interpolate(self, string: str) -> str:
+        args = []
+        for snippet, is_code in interpolate_(string, self.interpolation):
+            if is_code:
+                args.append(f"{snippet}")
+            else:
+                args.append(repr(snippet))
+        if not args:
+            return "''"
+        if len(args) == 1:
+            return f"str({args[0]})"
+        return f'concat({", ".join(args)})'
+    
+    def derive(self, path: str | pathlib.Path) -> Junk:
+        junk = type(self)(path)
+        if self._active_lines:
+            junk.lines.set_source(self.line.source_path, self.line.source_line)
         else:
-            end = "\n" if newline else ""
-            indent += self.text_indent
-            self.output.append(f'{" " * indent}{"".join(map(str, args))}{end}')
-
-    @contextlib.contextmanager
-    def indent(self, indent: int) -> Iterator[None]:
-        self.text_indent += indent
-        try:
-            yield
-        finally:
-            self.text_indent -= indent
+            junk.lines.set_source(self.lines.source_path, self.lines.source_line)
+        junk.meta_state = self.meta_state
+        return junk
 
     def evaluate(
         self,
@@ -240,28 +226,42 @@ class Junk:
             exec(self.to_string(), self.eval_namespace)
         return "".join(self.output).rstrip()
 
-    def interpolate(self, string: str) -> str:
-        args = []
-        for snippet, is_code in interpolate_(string, self.interpolation):
-            if is_code:
-                args.append(f"{snippet}")
+    def eval_emit(
+        self,
+        indent: int | None,
+        *args: Any,
+        inline: bool = False,
+        newline: bool = True,
+    ) -> None:
+        text = "".join(map(str, args))
+        if inline:
+            self.output.append(text)
+        else:
+            end = "\n" if newline else ""
+            if indent is None:
+                indent = 0
             else:
-                args.append(repr(snippet))
-        if not args:
-            return "''"
-        if len(args) == 1:
-            return f"str({args[0]})"
-        return f'concat({", ".join(args)})'
+                indent += self.output_indent
+            self.output.append(f'{" " * indent}{text}{end}')
 
     @contextlib.contextmanager
-    def redirect_output(self) -> Iterator[list[str]]:
-        output: list[str] = []
+    def eval_indent(self, indent: int) -> Iterator[None]:
+        self.output_indent += indent
+        try:
+            yield
+        finally:
+            self.output_indent -= indent
+
+    @contextlib.contextmanager
+    def redirect_output(self, output: list[str] | None = None) -> Iterator[list[str]]:
+        if output is None:
+            output = []
         prev_output, self.output = self.output, output
         try:
             yield output
         finally:
             self.output = prev_output
-
+ 
     @contextlib.contextmanager
     def _set_active_line(self, line: Line) -> Iterator[None]:
         self._active_lines.append(line)
@@ -269,6 +269,12 @@ class Junk:
             yield
         finally:
             self._active_lines.pop()
+    
+    @property
+    def _source_comment(self) -> str:
+        if self.sourcemap and self._active_lines:
+            return f"  # {self.line!r}"
+        return ""
 
     def _generate_intro(self, code: str) -> str:
         paths: set[pathlib.Path] = set()
@@ -297,26 +303,47 @@ class Junk:
             intro.append("")
         for name, def_ in defs.items():
             intro.append(f"{def_}\n")
-        return "\n".join(intro) + "\n" + code
+        docstring = '"""\n{self.lines.to_string()}\n"""\n\n'
+        return docstring + "\n".join(intro) + "\n" + code
 
 
-def _transpile_code(junk: Junk, content: str) -> None:
-    text_indent = junk.line.indent
-    if text_indent:
-        junk.emit_code(f"with indent({text_indent}):")
+def code(junk: Junk, content: str) -> None:
+    # comment line or block
+    if content.startswith(junk.comment_prefix):
+        return
+    # code block
+    if not content:
+        code = junk.line.children.to_string()
+        junk.emit_code(code)
+        return
+    # code line
+    output_indent = junk.line.indent
+    if output_indent:
+        junk.emit_code(f"with indent({output_indent}):")
         junk.code_indent += 4
     junk.emit_code(content)
     with junk.increase_code_indent():
-        junk.transpile(junk.line.children.dedent(junk.line.indent + 4))
-    if text_indent > 0:
+        junk.transpile(junk.line.children.snap(0))
+    if output_indent > 0:
         junk.code_indent -= 4
 
 
-def _transpile_meta(junk: Junk, content: str) -> None:
+def meta(junk: Junk, content: str) -> None:
+    # empty line or meta block
+    if not content:
+        # empty line
+        if not junk.line.children:
+            junk.emit_text(0, '')
+            return
+        # meta block
+        code = junk.line.children.snap(0).to_string()
+        exec(code, {"junk": junk}, junk.meta_namespace)
+        return
+    # meta function
     match = META_REGEX.match(content)
     if not match:
         raise ValueError(
-            f"expected meta function on {junk.line} to be '<function> [<argument>]' or '<function>(<arguments>)',"
+            f"expected meta function on {junk.line} to be '<function> [<argument>]' or '<function>(<arguments>)', "
             f"but got {content!r}"
         )
     name, args, arg = match.groups()
@@ -324,7 +351,7 @@ def _transpile_meta(junk: Junk, content: str) -> None:
     if name not in meta_functions:
         raise ValueError(
             f"unknown meta function {name!r} on {junk.line} "
-            f"(available meta functions are {', '.join(meta_functions)})"
+            f"(available meta functions are {and_(meta_functions)})"
         )
     if args:
         meta_code = f"{name}(junk, {args})"
@@ -335,20 +362,30 @@ def _transpile_meta(junk: Junk, content: str) -> None:
     eval(meta_code, {"junk": junk}, junk.meta_namespace)
 
 
-def _transpile_text(junk: Junk, content: str) -> None:
+def text(junk: Junk, content: str) -> None:
     junk.emit_text(junk.line.indent, junk.line.content)
     junk.transpile(junk.line.children)
 
 
-def _load(junk: Junk, target: str | pathlib.Path | dict[str, Any]) -> None:
+def load(junk: Junk, target: MetaModule) -> None:
     if isinstance(target, dict):
         namespace = target
-    else:
+    elif isinstance(target, str | pathlib.Path):
         path = junk.path.parent / target
         if not path.exists():
-            path = junk.builtins_directory / f"{target}.py"
-            if not path.exists():
-                raise ValueError(f"could not load {target!r} " "(neither file nor builtin module found)")
+            for builtin_directory in junk.builtins_directories:
+                path = builtin_directory / f"{target}.py"
+                if path.exists():
+                    break
+            else:
+                builtin_modules = []
+                for builtin_directory in junk.builtins_directories:
+                    for builtin_module in builtin_directory.glob("*.py"):
+                        builtin_modules.append(builtin_module.stem)
+                raise ValueError(
+                    f"could not load {target!r} "
+                    f"({path} does not exist, and available builtins are {and_(builtin_modules)})"
+                )
         sys_path = sys.path.copy()
         sys_path.append(str(path.parent))
         try:
@@ -358,12 +395,17 @@ def _load(junk: Junk, target: str | pathlib.Path | dict[str, Any]) -> None:
             exec(code, namespace)
         finally:
             sys.path = sys_path
+    else:
+        for meta_module in target:
+            namespace.update(load(junk, meta_module))
+        return
     for key, value in namespace.items():
-        if key.startswith("meta_"):
-            name = key.removeprefix("meta_")
+        if key.startswith(junk.meta_function_prefix):
+            name = key.removeprefix(junk.meta_function_prefix)
             junk.meta_namespace[name] = value
-        if key.startswith("eval_"):
-            name = key.removeprefix("eval_")
+        if key.startswith(junk.eval_function_prefix):
+            name = key.removeprefix(junk.eval_function_prefix)
             junk.eval_namespace[name] = value.__get__(junk)
-    if "on_load" in namespace:
-        namespace["on_load"](junk)
+    if junk.on_load_function_name in namespace:
+        namespace[junk.on_load_function_name](junk)
+

@@ -34,7 +34,8 @@ class DefinitionCollector(ast.NodeTransformer):
 
 
 def collect_definitions(
-    code: str, paths: set[pathlib.Path]
+    code: str,
+    paths: set[pathlib.Path],
 ) -> tuple[dict[str, str], dict[str, tuple[str, str | None]]]:
     evals: dict[str, str] = {}
     defs: dict[str, str] = {}
@@ -51,11 +52,11 @@ def collect_definitions(
         if name not in evals:
             continue
         code = used_defs[name] = evals.pop(name)
-        collect_deps(code, defs, imps, used_defs, used_imps)
+        collect_dependencies(code, defs, imps, used_defs, used_imps)
     return used_defs, used_imps
 
 
-def collect_deps(
+def collect_dependencies(
     code: str,
     defs: dict[str, str],
     imps: dict[str, tuple[str, str | None]],
@@ -67,7 +68,7 @@ def collect_deps(
             used_imps[name] = imps.pop(name)
         elif name in defs:
             code = used_defs[name] = defs.pop(name)
-            collect_deps(code, defs, imps, used_defs, used_imps)
+            collect_dependencies(code, defs, imps, used_defs, used_imps)
 
 
 def collect_global_references(code: str | CodeType) -> set[str]:

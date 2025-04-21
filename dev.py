@@ -31,7 +31,7 @@ def clean() -> None:
 
 def test(args: list[str]) -> None:
     tests = []
-    for arg in sys.argv[1:]:
+    for arg in args:
         tests.extend(["-k", arg])
     _execute("pytest", "tests", "-x", "-vv", "--ff", *tests)
 
