@@ -33,7 +33,7 @@ class EvaluationError(Exception):
             if traceback.tb_frame.f_code.co_filename == self.source:
                 file = "Junk"
             else:
-                file = f'File "{os.path.basename(traceback.tb_frame.f_code.co_filename)}"'
+                file = f'File "{traceback.tb_frame.f_code.co_filename}"'
             output.append(
                 self._indent(2, f"{file}, line {traceback.tb_lineno}, in {traceback.tb_frame.f_code.co_name}")
             )
@@ -41,7 +41,7 @@ class EvaluationError(Exception):
             if template:
                 template_code, template_path, template_line_number = template
                 output.append(self._indent(4, f'@ File "{template_path}", line {template_line_number}'))
-                output.append(self._indent(6, template_code))
+                output.append(self._indent(8, template_code))
             traceback = traceback.tb_next
         output.append(f"{type(self.error).__name__}: {self.error}")
         return "\n".join(output)
@@ -58,7 +58,7 @@ class EvaluationError(Exception):
             code, template_path, template_line_number = match.groups()
             with open(template_path) as file:
                 template_code = file.read().splitlines()[int(template_line_number) - 1]
-            template = template_code.strip(), os.path.basename(template_path), template_line_number
+            template = template_code.strip(), template_path, template_line_number
         else:
             template = None
         tree = ast.parse(source)

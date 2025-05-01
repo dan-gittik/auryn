@@ -1,10 +1,11 @@
 import argparse
 import json
 import pathlib
+import sys
 from typing import Any
 
 from .api import evaluate, render, transpile
-
+from .errors import EvaluationError
 
 def parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str, Any]:
     context = {}
@@ -75,31 +76,35 @@ def cli(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
-    match args.command:
-        case "transpile":
-            code = transpile(
-                pathlib.Path(args.path).absolute(),
-                sourcemap=args.sourcemap,
-                load=args.load,
-                load_common=not args.no_common,
-                standalone=args.standalone,
-            )
-            print(code)
+    try:
+        match args.command:
+            case "transpile":
+                code = transpile(
+                    pathlib.Path(args.path).absolute(),
+                    sourcemap=args.sourcemap,
+                    load=args.load,
+                    load_common=not args.no_common,
+                    standalone=args.standalone,
+                )
+                print(code)
 
-        case "render":
-            context = parse_context(args.context, args.context_kwargs)
-            output = render(
-                pathlib.Path(args.path).absolute(),
-                context,
-                load=args.load,
-                load_common=not args.no_common,
-            )
-            print(output)
+            case "render":
+                context = parse_context(args.context, args.context_kwargs)
+                output = render(
+                    pathlib.Path(args.path).absolute(),
+                    context,
+                    load=args.load,
+                    load_common=not args.no_common,
+                )
+                print(output)
 
-        case "evaluate":
-            context = parse_context(args.context, args.context_kwargs)
-            output = evaluate(
-                pathlib.Path(args.path).absolute(),
-                context,
-            )
-            print(output)
+            case "evaluate":
+                context = parse_context(args.context, args.context_kwargs)
+                output = evaluate(
+                    pathlib.Path(args.path).absolute(),
+                    context,
+                )
+                print(output)
+    except EvaluationError as error:
+        print(error, file=sys.stderr)
+        exit(1)
