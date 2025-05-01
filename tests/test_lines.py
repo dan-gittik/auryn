@@ -22,7 +22,7 @@ def test_lines_empty() -> None:
     line_number = this_line(+1)
     lines = Lines()
     assert lines.source_path == THIS_FILE
-    assert lines.source_line == line_number
+    assert lines.source_line_number == line_number
     assert lines.parent is None
     assert lines.path is None
     assert lines.lines == []
@@ -49,7 +49,7 @@ def test_lines_from_string() -> None:
     assert lines.parent is None
     assert lines.path is None
     assert lines.source_path == THIS_FILE
-    assert lines.source_line == line_number
+    assert lines.source_line_number == line_number
     assert lines.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(lines.lines) == [
         (0, "a"),
@@ -92,7 +92,7 @@ def test_lines_from_path(tmp_path: pathlib.Path) -> None:
     assert lines.parent is None
     assert lines.path == path
     assert lines.source_path == THIS_FILE
-    assert lines.source_line == line_number
+    assert lines.source_line_number == line_number
     assert lines.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(lines.lines) == [
         (0, "a"),
@@ -230,7 +230,7 @@ def test_line_from_string() -> None:
     assert line1.container is lines
     assert line1.path is None
     assert line1.source_path == THIS_FILE
-    assert line1.source_line == line_number
+    assert line1.source_line_number == line_number
     assert line1.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(line1.children) == [
         (4, "b"),
@@ -246,7 +246,7 @@ def test_line_from_string() -> None:
     assert line2.container.parent is line1
     assert line2.path is None
     assert line2.source_path == THIS_FILE
-    assert line2.source_line == line_number + 1
+    assert line2.source_line_number == line_number + 1
     assert line2.source == f"{THIS_FILE.name}:{line_number + 1}"
     assert flatten(line2.children) == [
         (8, "c"),
@@ -261,7 +261,7 @@ def test_line_from_string() -> None:
     assert line3.container.parent is line2
     assert line3.path is None
     assert line3.source_path == THIS_FILE
-    assert line3.source_line == line_number + 2
+    assert line3.source_line_number == line_number + 2
     assert line3.source == f"{THIS_FILE.name}:{line_number + 2}"
     assert flatten(line3.children) == []
     assert str(line3) == f"line 3 at {THIS_FILE.name}:{line_number + 2}"
@@ -281,7 +281,7 @@ def test_line_from_path(tmp_path: pathlib.Path) -> None:
     assert line1.container is lines
     assert line1.path == path
     assert line1.source_path == THIS_FILE
-    assert line1.source_line == line_number
+    assert line1.source_line_number == line_number
     assert line1.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(line1.children) == [
         (4, "b"),
@@ -297,7 +297,7 @@ def test_line_from_path(tmp_path: pathlib.Path) -> None:
     assert line2.container.parent is line1
     assert line2.path == path
     assert line2.source_path == THIS_FILE
-    assert line2.source_line == line_number
+    assert line2.source_line_number == line_number
     assert line2.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(line2.children) == [
         (8, "c"),
@@ -312,7 +312,7 @@ def test_line_from_path(tmp_path: pathlib.Path) -> None:
     assert line3.container.parent is line2
     assert line3.path == path
     assert line3.source_path == THIS_FILE
-    assert line3.source_line == line_number
+    assert line3.source_line_number == line_number
     assert line3.source == f"{THIS_FILE.name}:{line_number}"
     assert flatten(line3.children) == []
     assert str(line3) == f"line 3 of {path.name} at {THIS_FILE.name}:{line_number}"
@@ -329,21 +329,20 @@ def test_set_source() -> None:
     )
     other_file = THIS_FILE.parent / "test.txt"
     assert lines.source_path == THIS_FILE
-    assert lines.source_line == line_number
+    assert lines.source_line_number == line_number
     assert lines[0].children.source_path == THIS_FILE
-    assert lines[0].children.source_line == line_number
+    assert lines[0].children.source_line_number == line_number
     lines.set_source(other_file, line_number + 3)
     assert lines.source_path == other_file
-    assert lines.source_line == line_number + 3
+    assert lines.source_line_number == line_number + 3
     assert lines[0].children.source_path == other_file
-    assert lines[0].children.source_line == line_number + 3
+    assert lines[0].children.source_line_number == line_number + 3
 
 
 def test_no_frame(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(inspect, "currentframe", lambda: None)
     with pytest.raises(RuntimeError, match="unable to infer source"):
         Lines()
-    
 
 
 def test_no_source() -> None:
@@ -354,12 +353,12 @@ def test_no_source() -> None:
     with pytest.raises(RuntimeError, match="source path not set"):
         line.source_path
     with pytest.raises(RuntimeError, match="source line not set"):
-        line.source_line
+        line.source_line_number
 
     lines._source_path = None
     with pytest.raises(RuntimeError, match="source path not set"):
         lines.source_path
 
-    lines._source_line = None
+    lines._source_line_number = None
     with pytest.raises(RuntimeError, match="source line not set"):
-        lines.source_line
+        lines.source_line_number

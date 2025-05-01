@@ -12,22 +12,29 @@ def test_split_line() -> None:
 
 
 def test_split_lines() -> None:
-    assert list(split_lines(
-        """
+    assert (
+        list(
+            split_lines(
+                """
         a
         b
         c
         """
-    )) == [
-        (2, "a"),
-        (3, "b"),
-        (4, "c"),
-    ]
+            )
+        )
+        == [
+            (2, "a"),
+            (3, "b"),
+            (4, "c"),
+        ]
+    )
 
 
 def test_split_lines_with_indent() -> None:
-    assert list(split_lines(
-        """
+    assert (
+        list(
+            split_lines(
+                """
         a
             b
             c
@@ -35,14 +42,17 @@ def test_split_lines_with_indent() -> None:
             e
             f
         """
-    )) == [
-        (2, "a"),
-        (3, "    b"),
-        (4, "    c"),
-        (5, "d"),
-        (6, "    e"),
-        (7, "    f"),
-    ]
+            )
+        )
+        == [
+            (2, "a"),
+            (3, "    b"),
+            (4, "    c"),
+            (5, "d"),
+            (6, "    e"),
+            (7, "    f"),
+        ]
+    )
 
 
 def test_split_lines_none() -> None:
@@ -50,8 +60,10 @@ def test_split_lines_none() -> None:
 
 
 def test_split_lines_with_empty_lines() -> None:
-    assert list(split_lines(
-        """
+    assert (
+        list(
+            split_lines(
+                """
 
 
         a
@@ -61,47 +73,65 @@ def test_split_lines_with_empty_lines() -> None:
 
         c
         """
-    )) == [
-        (4, "a"),
-        (6, "b"),
-        (9, "c"),
-    ]
+            )
+        )
+        == [
+            (4, "a"),
+            (6, "b"),
+            (9, "c"),
+        ]
+    )
 
 
 def test_split_line_with_open_lines() -> None:
-    assert list(split_lines(
-        """
+    assert (
+        list(
+            split_lines(
+                """
         a \\
         b
         c
     """
-    )) == [
-        (2, "a b"),
-        (4, "c"),
-    ]
-    assert list(split_lines(
-        """
+            )
+        )
+        == [
+            (2, "a b"),
+            (4, "c"),
+        ]
+    )
+    assert (
+        list(
+            split_lines(
+                """
         a
         b \\
             c \\
     d
         e
     """
-    )) == [
-        (2, "a"),
-        (3, "b c d"),
-        (6, "e"),
-    ]
-    assert list(split_lines(
-        """
+            )
+        )
+        == [
+            (2, "a"),
+            (3, "b c d"),
+            (6, "e"),
+        ]
+    )
+    assert (
+        list(
+            split_lines(
+                """
         a
         b \\
         c \\
         """
-    )) == [
-        (2, "a"),
-        (3, "b c"),
-    ]
+            )
+        )
+        == [
+            (2, "a"),
+            (3, "b c"),
+        ]
+    )
 
 
 def test_split_line_error() -> None:
@@ -109,10 +139,12 @@ def test_split_line_error() -> None:
         ValueError,
         match="expected line 3 to start with 12 spaces, but got '        b'",
     ):
-        list(split_lines(
-            """
+        list(
+            split_lines(
+                """
             a
         b
             c
             """
-        ))
+            )
+        )

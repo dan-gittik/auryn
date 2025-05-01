@@ -22,7 +22,7 @@ def split_lines(text: str) -> Iterator[tuple[int, str]]:
     text = text.rstrip().expandtabs()
     indent: int | None = None
     open_line: list[str] = []
-    open_line_number: int | None = None
+    open_line_number = 0
     for number, line in enumerate(text.splitlines(), skipped_lines + 1):
         if indent is None:
             indent, content = split_line(line)
@@ -40,7 +40,6 @@ def split_lines(text: str) -> Iterator[tuple[int, str]]:
                 continue
             yield open_line_number, " ".join(open_line)
             open_line.clear()
-            open_line_number = None
             continue
         prefix = line[:indent]
         if prefix and not prefix.isspace():

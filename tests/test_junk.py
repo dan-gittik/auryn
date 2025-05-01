@@ -1,6 +1,5 @@
 # flake8: noqa: W293
 
-import inspect
 import pathlib
 
 from auryn import Junk
@@ -20,7 +19,7 @@ def test_junk_from_string() -> None:
     )
     assert junk.path == THIS_FILE
     assert junk.source_path == THIS_FILE
-    assert junk.source_line == line_number
+    assert junk.source_line_number == line_number
     assert junk.source == f"{THIS_FILE.name}:{line_number}"
     assert str(junk) == f"junk at {THIS_FILE.name}:{line_number}"
     assert repr(junk) == f"<junk at {THIS_FILE.name}:{line_number}>"
@@ -34,7 +33,7 @@ def test_junk_from_file(tmp_path: pathlib.Path) -> None:
         junk = Junk(path_)
         assert junk.path == path
         assert junk.source_path == THIS_FILE
-        assert junk.source_line == line_number
+        assert junk.source_line_number == line_number
         assert junk.source == f"{THIS_FILE.name}:{line_number}"
         assert str(junk) == f"junk of {path} at {THIS_FILE.name}:{line_number}"
         assert repr(junk) == f"<junk of {path} at {THIS_FILE.name}:{line_number}>"

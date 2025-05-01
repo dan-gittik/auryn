@@ -1,10 +1,16 @@
 from typing import Iterator
 
+default_delimiters = "{ }"
 
-def interpolate(s: str, delimiters: str) -> Iterator[tuple[str, bool]]:
+
+def interpolate(s: str, delimiters: str | None = None) -> Iterator[tuple[str, bool]]:
+    if delimiters is None:
+        delimiters = default_delimiters
     if delimiters.count(" ") != 1:
         raise ValueError(f"invalid delimiters {delimiters!r} (expected space-separated pair)")
     a, b = delimiters.split(" ")
+    if not a or not b or a == b:
+        raise ValueError(f"invalid delimiters {delimiters!r} (delimiters must be non-empty and distinct)")
     if s == a or s == b or (a not in s and b not in s):
         yield s, False
         return
@@ -39,7 +45,7 @@ def interpolate(s: str, delimiters: str) -> Iterator[tuple[str, bool]]:
 
 
 def skip_expression(s, a, b, i):
-    L, aL, bL = len(s), len(a), len(b)
+    L, aL, bL, i0 = len(s), len(a), len(b), i
     depth = 1
     while i < L:
         if s[i : i + aL] == a:
@@ -55,12 +61,12 @@ def skip_expression(s, a, b, i):
         else:
             i += 1
     else:
-        raise ValueError(f"unable to interpolate {s!r}: unmatched {a!r} at offset {i}")
+        raise ValueError(f"unable to interpolate {s!r}: unmatched {a!r} at offset {i0 - aL}")
     return i
 
 
 def skip_string(s, i):
-    sL = len(s)
+    sL, i0 = len(s), i
     q = s[i]
     i += 1
     while i < sL:
@@ -68,9 +74,10 @@ def skip_string(s, i):
             i += 1
             break
         if s[i] == "\\":
+            print(s[i : i + 2])
             i += 2
         else:
             i += 1
     else:
-        raise ValueError(f"unable to interpolate {s!r}: unterminated quote at offset {i}")
+        raise ValueError(f"unable to interpolate {s!r}: unterminated quote at offset {i0}")
     return i

@@ -22,13 +22,13 @@ def parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str,
     return context
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Auryn metaprogramming engine")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     transpile_parser = subparsers.add_parser("transpile", help="transpile a template")
     transpile_parser.add_argument("path", help="template path")
-    transpile_parser.add_argument("-s", "--sourcemap", action="store_true", help="add source comments")
+    transpile_parser.add_argument("-S", "--sourcemap", action="store_true", help="add source comments")
     transpile_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
     transpile_parser.add_argument(
         "-n",
@@ -73,7 +73,7 @@ def cli() -> None:
         help="additional context as key=value pairs",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     match args.command:
         case "transpile":

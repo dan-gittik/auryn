@@ -14,7 +14,7 @@ def test_and_one() -> None:
 def test_and_two() -> None:
     for two in ([1, 2], {1, 2}, (i for i in range(1, 3))):
         assert and_(two) == "1 and 2"
-    
+
 
 def test_and_many() -> None:
     for many in ([1, 2, 3], {1, 2, 3}, (i for i in range(1, 4))):

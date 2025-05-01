@@ -61,8 +61,7 @@ def meta_f(
     with junk.increase_code_indent():
         if source:
             if render:
-                source_junk = junk.from_file(junk.path.parent / source)
-                source_junk.meta_state = junk.meta_state
+                source_junk = junk.derive(junk.path.parent / source)
                 source_junk.transpile()
                 junk.emit_code(source_junk.to_string())
             else:

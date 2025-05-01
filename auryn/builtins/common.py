@@ -17,10 +17,10 @@ class Bookmark:
         self.code_indent = code_indent
         self.text_indent = text_indent
         self.code_lines: list[str] = []
-    
+
     def __str__(self) -> str:
         return "\n".join(self.code_lines)
-    
+
     @contextlib.contextmanager
     def inject(self, junk: Junk) -> Iterator[None]:
         code_indent, text_indent, code_lines = junk.code_indent, junk.text_indent, junk.code_lines
@@ -99,7 +99,7 @@ def emit_raw(junk: Junk, content: str) -> None:
 
 
 def meta_stop(junk: Junk) -> None:
-    junk.emit_code(f"raise StopEvaluation()")
+    junk.emit_code("raise StopEvaluation()")
 
 
 def meta_param(junk: Junk, name: str, default: Any = UNDEFINED) -> None:
@@ -111,7 +111,7 @@ def meta_param(junk: Junk, name: str, default: Any = UNDEFINED) -> None:
             f"""
             if {name!r} not in globals():
                 raise ValueError({message!r})
-    I       """
+            """
         )
     else:
         junk.emit_code(
@@ -137,7 +137,7 @@ def meta_inline(junk: Junk) -> None:
 
 
 def meta_assign(junk: Junk, name: str) -> None:
-    junk.emit_code(f"with assign() as _:")
+    junk.emit_code("with assign() as _:")
     with junk.increase_code_indent():
         junk.transpile(junk.line.children.snap(junk.line.indent))
     junk.emit_code(f"{name} = ''.join(_).strip()")
@@ -159,8 +159,7 @@ def meta_append(junk: Junk, name: str) -> None:
     bookmarks: dict[str, Bookmark] = junk.meta_state.get(BOOKMARKS, {})
     if name not in bookmarks:
         raise ValueError(
-            f"missing required bookmark {name!r} on {junk.line} "
-            f"(available bookmarks are {and_(bookmarks)})"
+            f"missing bookmark {name!r} referenced on {junk.line} " f"(available bookmarks are {and_(bookmarks)})"
         )
     with bookmarks[name].inject(junk):
         junk.transpile(junk.line.children.snap(0))
@@ -178,5 +177,5 @@ def eval_camel_case(junk: Junk, name: str) -> str:
     return "".join(word.capitalize() for word in name.split("_"))
 
 
-def eval_concat(*args: Any) -> str:
+def eval_concat(junk: Junk, *args: Any) -> str:
     return "".join(map(str, args))

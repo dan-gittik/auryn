@@ -10,7 +10,7 @@ from typing import Any
 ROOT = pathlib.Path(__file__).parent
 PACKAGE = "auryn"
 LINE_LENGTH = 120
-COVERAGE_PORT = 5000
+COVERAGE_PORT = 8888
 ARTEFACTS = [
     ".pytest_cache",
     ".coverage",
