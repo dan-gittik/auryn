@@ -32,14 +32,17 @@ def split_lines(text: str) -> Iterator[tuple[int, str]]:
                 continue
             yield number, content
             continue
-        if not line.strip():
-            continue
         if open_line:
+            if not line.strip():
+                continue
             open_line.append(line.removesuffix(OPEN_LINE_SUFFIX).strip())
             if line.endswith(OPEN_LINE_SUFFIX):
                 continue
             yield open_line_number, " ".join(open_line)
             open_line.clear()
+            continue
+        if not line.strip():
+            yield number, ""
             continue
         prefix = line[:indent]
         if prefix and not prefix.isspace():

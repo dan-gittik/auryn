@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from auryn.interpolate import interpolate
+from auryn.interpolate import interpolate, parse_arguments
 
 
 def test_interpolate():
@@ -106,3 +106,10 @@ def test_interpolate_unterminated_string():
             match=re.escape(f"unable to interpolate {s!r}: unterminated quote at offset 1"),
         ):
             list(interpolate(s))
+
+
+def test_parse_arguments():
+    assert list(parse_arguments("")) == []
+    assert list(parse_arguments("x")) == ["x"]
+    assert list(parse_arguments("x y")) == ["x", "y"]
+    assert list(parse_arguments("x y z")) == ["x", "y", "z"]

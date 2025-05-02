@@ -41,15 +41,57 @@ def test_include(tmp_path: pathlib.Path) -> None:
     assert received == expected
 
 
+def test_include_load(tmp_path: pathlib.Path) -> None:
+    meta_path = tmp_path / "meta.py"
+    meta_code = trim(
+        """
+        def on_load(junk):
+            junk.transpilers[""] = text
+        
+        def text(junk, content):
+            if content:
+                return junk.emit_text(junk.line.indent, f"<p>{content}</p>")
+            junk.transpile()
+        """
+    )
+    meta_path.write_text(meta_code)
+
+    template = trim(
+        """
+        !for i in range(n):
+            line {i}
+        """
+    )
+
+    received = render(
+        """
+        %include: template load=meta_path
+        """,
+        meta_context={
+            "template": template,
+            "meta_path": meta_path,
+        },
+        n=3,
+    )
+    expected = trim(
+        """
+        <p>line 0</p>
+        <p>line 1</p>
+        <p>line 2</p>
+        """
+    )
+    assert received == expected
+
+
 def test_insert() -> None:
     received = render(
         """
         %define one
             line 1
-        %define('two')
+        %define: "two"
             line 2
         %insert two
-        %insert('one')
+        %insert: "one"
         """
     )
     expected = trim(
@@ -80,7 +122,7 @@ def test_insert_missing() -> None:
             """
             %define a
             %define b
-            %insert('block', required=True)
+            %insert: "block" required=True
             """
         )
 
@@ -88,7 +130,7 @@ def test_insert_missing() -> None:
         """
         %define block
             inserted line
-        %insert('block', required=True)
+        %insert:: "block", required=True
         """
     )
     expected = "inserted line"
@@ -103,7 +145,7 @@ def test_extend(tmp_path: pathlib.Path) -> None:
                 <title>default title</title>
         </head>
         <body>
-            %insert('body', required=True)
+            %insert: "body" required=True
         </body>
         """
     )
@@ -396,7 +438,7 @@ def test_param() -> None:
 
 def test_param_default() -> None:
     template = """
-        %param('x', 1)
+        %param: "x" 1
         {x + 1}
     """
     assert render(template) == "2"
@@ -531,11 +573,11 @@ def test_invalid_meta_function() -> None:
     line_number = this_line(+6)
     with pytest.raises(
         ValueError,
-        match=rf"expected meta function on line 1 at {THIS_FILE.name}:{line_number + 1} to be '<function> \[<argument>\]' or '<function>\(<arguments>\)', but got 'include\(1, 2'",
+        match=rf"expected meta function on line 1 at {THIS_FILE.name}:{line_number + 1} to be '<function> \[argument\]', '<function>: <arguments>' or '<function>:: <invocation>', but got 'include\(1, 2\)'",
     ):
         transpile(
             """
-            %include(1, 2
+            %include(1, 2)
             """
         )
     line_number = this_line(+7)

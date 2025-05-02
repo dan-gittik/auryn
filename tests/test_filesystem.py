@@ -17,7 +17,7 @@ def test_filesystem(tmp_path: pathlib.Path) -> None:
             %d subdir
                 %f subfile
                     hello {name}
-    """,
+        """,
         root=tmp_path,
         name="alice",
     )
@@ -45,7 +45,7 @@ def test_filesystem_standalone(tmp_path: pathlib.Path) -> None:
             %d subdir
                 %f subfile
                     hello {name}
-    """,
+        """,
         standalone=True,
     )
     assert evaluate(code, root=tmp_path, name="alice") == ""
@@ -63,21 +63,19 @@ def test_filesystem_standalone(tmp_path: pathlib.Path) -> None:
 
 
 def test_filesystem_name_interpolation(tmp_path: pathlib.Path) -> None:
-    assert (
-        render(
-            """
+    received = render(
+        """
         %load filesystem
         %d {dirname}
             %f {filename}
                 {content}
-    """,
-            root=tmp_path,
-            dirname="dir",
-            filename="file",
-            content="hello world",
-        )
-        == ""
+        """,
+        root=tmp_path,
+        dirname="dir",
+        filename="file",
+        content="hello world",
     )
+    assert received == ""
 
     dir = tmp_path / "dir"
     assert dir.is_dir()
@@ -90,18 +88,15 @@ def test_filesystem_empty(tmp_path: pathlib.Path) -> None:
     file = tmp_path / "file"
     file.write_text("")
 
-    assert (
-        render(
-            """
+    received = render(
+        """
         %load filesystem
         %d dir
         %f file
-    """,
-            root=tmp_path,
-        )
-        == ""
+        """,
+        root=tmp_path,
     )
-
+    assert received == ""
     dir = tmp_path / "dir"
     assert dir.is_dir()
     file = tmp_path / "file"
@@ -128,8 +123,8 @@ def test_filesystem_source(tmp_path: pathlib.Path) -> None:
     template_code = trim(
         """
         %load filesystem
-        %d('dir', 'source_dir')
-            %f('file2', 'source_file')
+        %d: "dir" source="source_dir"
+            %f: "file2" source="source_file"
         """
     )
     template_path.write_text(template_code)
@@ -141,7 +136,7 @@ def test_filesystem_source(tmp_path: pathlib.Path) -> None:
         hello alice
         !for i in range(n):
             line 0
-    """
+        """
     )
     dir = tmp_path / "dir"
     assert dir.is_dir()
@@ -168,17 +163,21 @@ def test_filesystem_render(tmp_path: pathlib.Path) -> None:
     source_file = tmp_path / "source_file"
     source_file.write_text(file_code)
 
-    template_path = tmp_path / "template.txt"
-    template_code = trim(
+    received = render(
         """
         %load filesystem
-        %d('dir', 'source_dir', render=True)
-            %f('file2', 'source_file', render=True)
-        """
+        %d: "dir" source=source_dir render=True
+            %f: "file2" source=source_file render=True
+        """,
+        meta_context={
+            "source_dir": source_dir,
+            "source_file": source_file,
+        },
+        root=tmp_path,
+        name="alice",
+        n=3,
     )
-    template_path.write_text(template_code)
-
-    assert render(template_path, root=tmp_path, name="alice", n=3) == ""
+    assert received == ""
 
     file_content = trim(
         """
@@ -215,8 +214,8 @@ def test_filesystem_no_interpolation(tmp_path: pathlib.Path) -> None:
     template_code = trim(
         """
         %load filesystem
-        %d('dir', 'source_dir', interpolate=False)
-            %f('file2', 'source_file', interpolate=False)
+        %d: "dir" source="source_dir" interpolate=False
+            %f: "file2" source="source_file" interpolate=False
         """
     )
     template_path.write_text(template_code)
@@ -255,9 +254,9 @@ def test_filesystem_redirect(tmp_path: pathlib.Path) -> None:
     template_code = trim(
         """
         %load filesystem
-        %x('echo {stdout}', into='x')
-        %x('echo {stderr} 1>&2', stderr_into='y')
-        %x('bash -c "exit 3"', status_into='z')
+        %x: "echo {stdout}" into="x"
+        %x: "echo {stderr} 1>&2" stderr_into="y"
+        %x: "bash -c 'exit 3'" status_into="z"
         %f file
             {x}{y}{z}
         """
@@ -293,7 +292,7 @@ def test_filesystem_strict(tmp_path: pathlib.Path) -> None:
     template_code = trim(
         """
         %load filesystem
-        %x('asdf', strict=True)
+        %x: "asdf" strict=True
         %f file2
             hello world
         """
@@ -311,7 +310,7 @@ def test_filesystem_timeout(tmp_path: pathlib.Path) -> None:
     template_code = trim(
         """
         %load filesystem
-        %x('sleep 1', timeout=0.5)
+        %x: "sleep 1" timeout=0.5
         %f file
             hello world
         """

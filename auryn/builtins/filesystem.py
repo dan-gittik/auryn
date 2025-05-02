@@ -35,7 +35,8 @@ def meta_d(
                     name = str(path.relative_to(root))
                     meta_f(junk, name, path, render, interpolate)
         if junk.line.children:
-            junk.transpile(junk.line.children.snap(junk.line.indent))
+            junk.line.children.snap()
+            junk.transpile()
         else:
             junk.emit_code("pass")
 
@@ -68,7 +69,8 @@ def meta_f(
                 source_text = (junk.path.parent / source).read_text()
                 junk.emit_text(0, source_text, interpolate=interpolate)
         elif junk.line.children:
-            junk.transpile(junk.line.children.snap(junk.line.indent))
+            junk.line.children.snap()
+            junk.transpile()
         else:
             junk.emit_code("pass")
 
@@ -77,9 +79,10 @@ def meta_f(
 def eval_file(junk: Junk, name: str) -> Iterator[None]:
     path = pathlib.Path(name)
     path.parent.mkdir(parents=True, exist_ok=True)
-    with junk.redirect_output() as output:
+    eval_lines: list[str] = []
+    with junk.patch(eval_lines=eval_lines):
         yield
-        path.write_text("".join(output).strip())
+        path.write_text("".join(eval_lines).strip())
 
 
 def meta_x(

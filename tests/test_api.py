@@ -1,11 +1,10 @@
 # flake8: noqa: W293
 
 import pathlib
-import re
 
 import pytest
 
-from auryn import EvaluationError, Junk, evaluate, render, transpile
+from auryn import Junk, evaluate, render, transpile
 
 from .conftest import this_line, trim
 
@@ -18,7 +17,7 @@ def test_transpile() -> None:
         !for i in range(n):
             line {i}
         """,
-        sourcemap=False,
+        add_source_comments=False,
     )
     expected = trim(
         """
@@ -278,53 +277,3 @@ def test_no_transpilers() -> None:
         match=rf"unable to transpile line 1 at {THIS_FILE.name}:{line_number + 1} \(considered <none>\)",
     ):
         junk.transpile()
-
-
-def test_evaluation_error(tmp_path: pathlib.Path) -> None:
-    meta_path = tmp_path / "meta.py"
-    meta_code = trim(
-        """
-        def error(x):
-            raise ValueError(x)
-        
-        def meta_error(junk, x):
-            junk.emit_code(f"error({junk.interpolate(x)})")
-        
-        def eval_error(junk, x):
-            junk.emit(0, error(x))
-        """
-    )
-    meta_path.write_text(meta_code)
-
-    template_path = tmp_path / "template.txt"
-    template_code = trim(
-        """
-        %error {x}
-        """
-    )
-    template_path.write_text(template_code)
-
-    line_number = this_line(+23)
-    pattern = re.escape(
-        trim(
-            rf"""
-            Failed to evaluate junk at {THIS_FILE.name}:{line_number}.
-            Context:
-              x: 1
-            Traceback (most recent call last):
-              Junk, line 1, in <module>
-                > error(str(x))
-                @ File "template.txt", line 1
-                  %error {{x}}
-              File "meta.py", line 8, in eval_error
-                  def eval_error(junk, x):
-                >     junk.emit(0, error(x))
-              File "meta.py", line 2, in error
-                  def error(x):
-                >     raise ValueError(x)
-            ValueError: 1
-            """
-        )
-    )
-    with pytest.raises(EvaluationError, match=pattern):
-        render(template_path, load=meta_path, x=1)

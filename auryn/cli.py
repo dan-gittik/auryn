@@ -7,6 +7,7 @@ from typing import Any
 from .api import evaluate, render, transpile
 from .errors import EvaluationError
 
+
 def parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str, Any]:
     context = {}
     if path:
@@ -29,7 +30,8 @@ def cli(argv: list[str] | None = None) -> None:
 
     transpile_parser = subparsers.add_parser("transpile", help="transpile a template")
     transpile_parser.add_argument("path", help="template path")
-    transpile_parser.add_argument("-S", "--sourcemap", action="store_true", help="add source comments")
+    transpile_parser.add_argument("-c", "--context", default=None, help="context path")
+    transpile_parser.add_argument("-S", "--add-source-comments", action="store_true", help="add source comments")
     transpile_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
     transpile_parser.add_argument(
         "-n",
@@ -44,6 +46,12 @@ def cli(argv: list[str] | None = None) -> None:
         action="store_true",
         default=False,
         help="generate standalone code",
+    )
+    transpile_parser.add_argument(
+        "context_kwargs",
+        nargs="*",
+        default=[],
+        help="additional context as key=value pairs",
     )
 
     render_parser = subparsers.add_parser("render", help="render a template")
@@ -79,11 +87,13 @@ def cli(argv: list[str] | None = None) -> None:
     try:
         match args.command:
             case "transpile":
+                context = parse_context(args.context, args.context_kwargs)
                 code = transpile(
                     pathlib.Path(args.path).absolute(),
-                    sourcemap=args.sourcemap,
-                    load=args.load,
+                    context,
                     load_common=not args.no_common,
+                    add_source_comments=args.add_source_comments,
+                    load=args.load,
                     standalone=args.standalone,
                 )
                 print(code)

@@ -16,7 +16,7 @@ def interpolate(s: str, delimiters: str | None = None) -> Iterator[tuple[str, bo
         return
     sL, aL, bL = len(s), len(a), len(b)
     i = 0
-    text = []
+    text: list[str] = []
     while i < sL:
         if s[i : i + aL] == a:
             if s[i + aL : i + 2 * aL] == a:
@@ -44,10 +44,30 @@ def interpolate(s: str, delimiters: str | None = None) -> Iterator[tuple[str, bo
         yield "".join(text), False
 
 
+def parse_arguments(s: str) -> Iterator[str]:
+    sL, i = len(s), 0
+    text: list[str] = []
+    while i < sL:
+        if s[i] == " ":
+            if text:
+                yield "".join(text)
+                text.clear()
+            i += 1
+        elif s[i] in ["'", '"']:
+            to = skip_string(s, i)
+            text.append(s[i:to])
+            i = to
+        else:
+            text.append(s[i])
+            i += 1
+    if text:
+        yield "".join(text)
+
+
 def skip_expression(s, a, b, i):
-    L, aL, bL, i0 = len(s), len(a), len(b), i
+    sL, aL, bL, i0 = len(s), len(a), len(b), i
     depth = 1
-    while i < L:
+    while i < sL:
         if s[i : i + aL] == a:
             depth += 1
             i += aL

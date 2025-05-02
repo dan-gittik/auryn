@@ -6,15 +6,20 @@ from .junk import Junk
 
 def transpile(
     template: str | pathlib.Path,
+    meta_context: dict[str, Any] | None = None,
     /,
     *,
-    sourcemap: bool | None = None,
-    load: str | pathlib.Path | dict[str, Any] | None = None,
     load_common: bool | None = None,
-    standalone: bool = False,
+    add_source_comments: bool | None = None,
+    load: str | pathlib.Path | dict[str, Any] | None = None,
+    standalone: bool | None = None,
+    **meta_context_kwargs: Any,
 ) -> str:
-    junk = Junk(template, stack_level=1, sourcemap=sourcemap)
-    junk.transpile(load=load, load_common=load_common)
+    junk = Junk(template, load_common=load_common, add_source_comments=add_source_comments, stack_level=1)
+    if load:
+        junk.load(load)
+    junk.meta_namespace.update({**(meta_context or {}), **meta_context_kwargs})
+    junk.transpile()
     return junk.to_string(standalone=standalone)
 
 
@@ -23,12 +28,16 @@ def render(
     context: dict[str, Any] | None = None,
     /,
     *,
-    load: str | pathlib.Path | dict[str, Any] | None = None,
     load_common: bool | None = None,
+    load: str | pathlib.Path | dict[str, Any] | None = None,
+    meta_context: dict[str, Any] | None = None,
     **context_kwargs: Any,
 ) -> str:
-    junk = Junk(template, stack_level=1)
-    junk.transpile(load=load, load_common=load_common)
+    junk = Junk(template, load_common=load_common, stack_level=1)
+    if load:
+        junk.load(load)
+    junk.meta_namespace.update(meta_context or {})
+    junk.transpile()
     return junk.evaluate(context, **context_kwargs)
 
 
@@ -39,10 +48,10 @@ def evaluate(
     **context_kwargs: Any,
 ) -> str:
     if isinstance(path, str) and "\n" in path:
-        code_lines = path.splitlines()
+        meta_lines = path.splitlines()
     else:
         path = pathlib.Path(path)
-        code_lines = path.read_text().splitlines()
+        meta_lines = path.read_text().splitlines()
     junk = Junk(stack_level=1)
-    junk.code_lines = code_lines
+    junk.meta_lines = meta_lines
     return junk.evaluate(context, **context_kwargs)

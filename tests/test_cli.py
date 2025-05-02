@@ -115,3 +115,15 @@ def test_evaluate(tmp_path: pathlib.Path, cli: CLI) -> None:
         """
     )
     assert received == expected
+
+
+def test_error(tmp_path: pathlib.Path, cli: CLI) -> None:
+    template_path = tmp_path / "template.txt"
+    template_code = trim(
+        """
+        !x
+        """
+    )
+    template_path.write_text(template_code)
+    with pytest.raises(RuntimeError, match=r"Failed to evaluate junk at (.|\n)*?NameError: name 'x' is not defined"):
+        cli("render", template_path)

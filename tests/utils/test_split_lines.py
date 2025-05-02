@@ -77,7 +77,10 @@ def test_split_lines_with_empty_lines() -> None:
         )
         == [
             (4, "a"),
+            (5, ""),
             (6, "b"),
+            (7, ""),
+            (8, ""),
             (9, "c"),
         ]
     )
@@ -105,6 +108,7 @@ def test_split_line_with_open_lines() -> None:
                 """
         a
         b \\
+
             c \\
     d
         e
@@ -114,7 +118,7 @@ def test_split_line_with_open_lines() -> None:
         == [
             (2, "a"),
             (3, "b c d"),
-            (6, "e"),
+            (7, "e"),
         ]
     )
     assert (
