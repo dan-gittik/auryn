@@ -13,18 +13,12 @@ BOOKMARKS = "bookmarks"
 
 class Bookmark:
 
-    def __init__(self, code_indent: int, text_indent: int) -> None:
-        self.code_indent = code_indent
-        self.text_indent = text_indent
-        self.meta_lines: list[Any] = []
+    def __init__(self, indent: int) -> None:
+        self.indent = indent
+        self.lines: list[Any] = []
 
     def __str__(self) -> str:
-        return "\n".join(map(str, self.meta_lines))
-
-    @contextlib.contextmanager
-    def inject(self, junk: Junk) -> Iterator[None]:
-        with junk.patch(code_indent=self.code_indent, text_indent=self.text_indent, meta_lines=self.meta_lines):
-            yield
+        return "".join(map(str, self.lines))
 
 
 def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path | dict[str, Any] | None = None) -> None:
@@ -33,7 +27,7 @@ def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path 
         included_junk.load(load)
     if junk.has_line:
         included_junk.lines.snap(junk.line.indent)
-    included_junk.transpile()
+    included_junk.transpile(junk.meta_context)
     junk.emit_code(included_junk.to_string())
 
 
@@ -50,17 +44,15 @@ def meta_insert(junk: Junk, name: str, required: bool = False) -> None:
                 f"missing required definition {name!r} on {junk.line} "
                 f"(available definitions are {and_(definitions)})"
             )
-        junk.line.children.snap()
-        junk.transpile()
+        junk.proceed(junk.line.children.snap())
         return
-    junk.transpile(definitions[name].snap(junk.line.indent))
+    junk.proceed(definitions[name].snap(junk.line.indent))
 
 
 def meta_extend(junk: Junk, template: str | pathlib.Path) -> None:
     if junk.line.children:
-        junk.line.children.snap()
         with junk.patch(meta_lines=junk.meta_lines, code_indent=junk.code_indent):
-            junk.transpile()
+            junk.proceed(junk.line.children.snap())
         meta_include(junk, template)
         return
 
@@ -74,9 +66,8 @@ def meta_extend(junk: Junk, template: str | pathlib.Path) -> None:
 
 def meta_interpolate(junk: Junk, interpolation: str) -> None:
     if junk.line.children:
-        junk.line.children.snap()
         with junk.patch(interpolation=interpolation):
-            junk.transpile()
+            junk.proceed(junk.line.children.snap())
     else:
         junk.interpolation = interpolation
 
@@ -92,7 +83,7 @@ def meta_raw(junk: Junk) -> None:
 
 def emit_raw(junk: Junk, content: str) -> None:
     junk.emit_code(f"{junk.EMIT}({junk.line.indent}, {content!r})")
-    junk.transpile()
+    junk.proceed()
 
 
 def meta_stop(junk: Junk) -> None:
@@ -124,7 +115,7 @@ def meta_param(junk: Junk, name: str, default: Any = UNDEFINED) -> None:
 def meta_inline(junk: Junk) -> None:
     junk.emit_text(junk.line.indent, "", newline=False)
     with junk.patch(inline=True):
-        junk.transpile()
+        junk.proceed()
     with junk.patch(inline=False):
         junk.emit_text(None, "")
 
@@ -132,8 +123,7 @@ def meta_inline(junk: Junk) -> None:
 def meta_assign(junk: Junk, name: str) -> None:
     junk.emit_code(f"with assign() as _:")
     with junk.increase_code_indent():
-        junk.line.children.snap()
-        junk.transpile()
+        junk.proceed(junk.line.children.snap())
     junk.emit_code(f"{name} = ''.join(_).strip()")
 
 
@@ -145,20 +135,32 @@ def eval_assign(junk: Junk) -> Iterator[list[str]]:
 
 
 def meta_bookmark(junk: Junk, name: str) -> None:
+    junk.emit_code(f"bookmark({junk.line.indent}, {junk.interpolate(name)})")
+
+
+def eval_bookmark(junk: Junk, indent: int, name: str) -> None:
+    bookmark = Bookmark(indent)
     bookmarks: dict[str, Bookmark] = junk.meta_state.setdefault(BOOKMARKS, {})
-    bookmarks[name] = bookmark = Bookmark(junk.code_indent, junk.line.indent)
-    junk.meta_lines.append(bookmark)
+    bookmarks[name] = bookmark
+    junk.eval_lines.append(bookmark)
 
 
 def meta_append(junk: Junk, name: str) -> None:
+    junk.emit_code(f"with append({junk.interpolate(name)}, {str(junk.line)!r}):")
+    with junk.increase_code_indent():
+        junk.proceed(junk.line.children.snap(0))
+
+
+@contextlib.contextmanager
+def eval_append(junk: Junk, name: str, line: str) -> Iterator[None]:
     bookmarks: dict[str, Bookmark] = junk.meta_state.get(BOOKMARKS, {})
     if name not in bookmarks:
         raise ValueError(
-            f"missing bookmark {name!r} referenced on {junk.line} " f"(available bookmarks are {and_(bookmarks)})"
+            f"missing bookmark {name!r} referenced on {line} " f"(available bookmarks are {and_(bookmarks)})"
         )
-    with bookmarks[name].inject(junk):
-        junk.line.children.snap(0)
-        junk.transpile()
+    bookmark = bookmarks[name]
+    with junk.patch(eval_lines=bookmark.lines, eval_indent=bookmark.indent):
+        yield
 
 
 def meta_strip(junk: Junk, suffix: str) -> None:

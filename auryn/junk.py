@@ -7,7 +7,6 @@ import sys
 from typing import Any, Callable, ClassVar, Iterable, Iterator, Protocol
 
 from .collect import collect_definitions, collect_global_references
-from .errors import EvaluationError, StopEvaluation
 from .interpolate import interpolate as interpolate_, parse_arguments
 from .lines import Line, Lines
 from .utils import and_, split_lines
@@ -53,9 +52,6 @@ class Junk:
     default_interpolation: ClassVar[str] = "{ }"
     interpolate_by_default: ClassVar[bool] = True
 
-    StopEvaluation: ClassVar[type[StopEvaluation]] = StopEvaluation
-    EvaluationError: ClassVar[type[EvaluationError]] = EvaluationError
-
     EMIT: ClassVar[str] = "emit"
     INDENT: ClassVar[str] = "indent"
     STOP_EVALUATION: ClassVar[str] = "StopEvaluation"
@@ -79,23 +75,27 @@ class Junk:
         self.text_indent = 0
         self.eval_indent = 0
         self.meta_lines: list[Any] = []
-        self.eval_lines: list[str] = []
+        self.eval_lines: list[Any] = []
         self.transpilers: dict[str, Transpiler] = {
             self.code_prefix: code,
             self.meta_prefix: meta,
             "": text,
         }
+        self.meta_context: dict[str, Any] = {}
         self.meta_namespace: dict[str, MetaFunction] = {
+            "junk": self,
             "load": load,
         }
         self.meta_state: dict[str, Any] = {}
         self.meta_callbacks: list[MetaCallback] = []
+        self.eval_context: dict[str, Any] = {}
         self.eval_namespace: dict[str, Any] = {
             "junk": self,
             self.EMIT: self.emit,
             self.INDENT: self.indent,
             self.STOP_EVALUATION: StopEvaluation,
         }
+        self.eval_state: dict[str, Any] = {}
         self.interpolation: str = self.default_interpolation
         self.inline: bool = False
         self._active_lines: list[Line] = []
@@ -133,12 +133,43 @@ class Junk:
     def load(self, target: MetaModule) -> None:
         load(self, target)
 
-    def transpile(self, lines: Lines | None = None) -> str:
+    def transpile(self, context: dict[str, Any] | None = None, /, **context_kwargs: Any) -> str:
+        if context:
+            self.meta_context.update(context)
+        if context_kwargs:
+            self.meta_context.update(context_kwargs)
+        self.meta_namespace.update(self.meta_context)
+        self.proceed(self.lines)
+        for callback in self.meta_callbacks:
+            callback(self)
+        return self.to_string()
+
+    def to_string(self, standalone: bool | None = None) -> str:
+        if standalone is None:
+            standalone = self.transpile_standalone_by_default
+        meta = "\n".join(map(str, self.meta_lines))
+        if standalone:
+            meta = self._generate_intro(meta)
+        return meta
+
+    def evaluate(self, context: dict[str, Any] | None = None, /, **context_kwargs: Any) -> str:
+        if context:
+            self.eval_context.update(context)
+        if context_kwargs:
+            self.eval_context.update(context_kwargs)
+        self.eval_namespace.update(self.eval_context)
+        meta = self.to_string()
+        try:
+            exec(compile(meta, self.source, "exec"), self.eval_namespace)
+        except StopEvaluation:
+            pass
+        except Exception as error:
+            raise EvaluationError(self, error)
+        return "".join(map(str, self.eval_lines)).rstrip()
+    
+    def proceed(self, lines: Lines | None = None) -> None:
         if lines is None:
-            if self.has_line:
-                lines = self.line.children
-            else:
-                lines = self.lines
+            lines = self.line.children
         for line in lines:
             with self._set_active_line(line):
                 for prefix, transpile in sorted(
@@ -153,17 +184,18 @@ class Junk:
                 else:
                     transpilers = (f"{transpile.__name__} ({prefix})" for prefix, transpile in self.transpilers.items())
                     raise ValueError(f"unable to transpile {line} (considered {and_(transpilers)})")
-        for callback in self.meta_callbacks:
-            callback(self)
-        return self.to_string()
 
-    def to_string(self, standalone: bool | None = None) -> str:
-        if standalone is None:
-            standalone = self.transpile_standalone_by_default
-        meta = "\n".join(map(str, self.meta_lines))
-        if standalone:
-            meta = self._generate_intro(meta)
-        return meta
+    @contextlib.contextmanager
+    def patch(self, **state: Any) -> Iterator[None]:
+        prev_state: dict[str, Any] = {}
+        for key, value in state.items():
+            prev_state[key] = getattr(self, key)
+            setattr(self, key, value)
+        try:
+            yield
+        finally:
+            for key, value in prev_state.items():
+                setattr(self, key, value)
 
     def emit_code(self, code: str) -> None:
         for _, code_line in split_lines(code):
@@ -171,11 +203,8 @@ class Junk:
 
     @contextlib.contextmanager
     def increase_code_indent(self) -> Iterator[None]:
-        self.code_indent += 4
-        try:
+        with self.patch(code_indent=self.code_indent + 4):
             yield
-        finally:
-            self.code_indent -= 4
 
     def emit_text(
         self,
@@ -213,18 +242,6 @@ class Junk:
         if len(args) == 1:
             return f"str({args[0]})"
         return f'concat({", ".join(args)})'
-    
-    @contextlib.contextmanager
-    def patch(self, **state: Any) -> Iterator[None]:
-        prev_state: dict[str, Any] = {}
-        for key, value in state.items():
-            prev_state[key] = getattr(self, key)
-            setattr(self, key, value)
-        try:
-            yield
-        finally:
-            for key, value in prev_state.items():
-                setattr(self, key, value)
 
     def derive(self, template: str | pathlib.Path) -> Junk:
         if isinstance(template, pathlib.Path) or "\n" not in template:
@@ -236,23 +253,6 @@ class Junk:
             junk.lines.set_source(self.lines.source_path, self.lines.source_line_number)
         junk.meta_state = self.meta_state
         return junk
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        /,
-        **context_kwargs: Any,
-    ) -> str:
-        context = {**(context or {}), **context_kwargs}
-        self.eval_namespace.update(context)
-        meta = self.to_string()
-        try:
-            exec(compile(meta, self.source, "exec"), self.eval_namespace)
-        except StopEvaluation:
-            pass
-        except Exception as error:
-            raise EvaluationError(self.source, meta, context, error)
-        return "".join(self.eval_lines).rstrip()
 
     def emit(
         self,
@@ -345,7 +345,7 @@ def code(junk: Junk, content: str) -> None:
     junk.emit_code(content)
     with junk.increase_code_indent():
         junk.line.children.snap(0)
-        junk.transpile()
+        junk.proceed()
     if eval_indent > 0:
         junk.code_indent -= 4
 
@@ -359,7 +359,7 @@ def meta(junk: Junk, content: str) -> None:
             return
         # meta block
         meta_code = junk.line.children.snap(0).to_string()
-        exec(meta_code, {"junk": junk}, junk.meta_namespace)
+        exec(meta_code, junk.meta_namespace)
         return
     # meta function
     match = META_REGEX.match(content)
@@ -383,13 +383,13 @@ def meta(junk: Junk, content: str) -> None:
         meta_code = f"{name}(junk, {args})"
     else:
         meta_code = f"{name}(junk, {arg})"
-    eval(meta_code, {"junk": junk}, junk.meta_namespace)
+    eval(meta_code, junk.meta_namespace)
 
 
 def text(junk: Junk, content: str) -> None:
     if content:
         junk.emit_text(junk.line.indent, content)
-    junk.transpile()
+    junk.proceed()
 
 
 def load(junk: Junk, target: MetaModule) -> None:
@@ -434,3 +434,6 @@ def load(junk: Junk, target: MetaModule) -> None:
             junk.eval_namespace[name] = value.__get__(junk)
     if junk.on_load_function_name in namespace:
         namespace[junk.on_load_function_name](junk)
+
+
+from .errors import EvaluationError, StopEvaluation

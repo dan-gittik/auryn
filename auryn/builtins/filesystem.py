@@ -35,8 +35,7 @@ def meta_d(
                     name = str(path.relative_to(root))
                     meta_f(junk, name, path, render, interpolate)
         if junk.line.children:
-            junk.line.children.snap()
-            junk.transpile()
+            junk.proceed(junk.line.children.snap())
         else:
             junk.emit_code("pass")
 
@@ -63,14 +62,13 @@ def meta_f(
         if source:
             if render:
                 source_junk = junk.derive(junk.path.parent / source)
-                source_junk.transpile()
+                source_junk.transpile(junk.meta_context)
                 junk.emit_code(source_junk.to_string())
             else:
                 source_text = (junk.path.parent / source).read_text()
                 junk.emit_text(0, source_text, interpolate=interpolate)
         elif junk.line.children:
-            junk.line.children.snap()
-            junk.transpile()
+            junk.proceed(junk.line.children.snap())
         else:
             junk.emit_code("pass")
 

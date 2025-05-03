@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import ast
 import pathlib
 import re
-from typing import Any
 
 SOURCEMAP_REGEX = re.compile(r"(.*?)  # (.*?):(\d+)$")
 
@@ -12,17 +13,15 @@ class StopEvaluation(Exception):
 
 class EvaluationError(Exception):
 
-    def __init__(self, source: str, meta: str, context: dict[str, Any], error: Exception) -> None:
-        self.source = source
-        self.meta = meta
-        self.context = context
+    def __init__(self, junk: Junk, error: Exception) -> None:
+        self.junk = junk
         self.error = error
 
     def __str__(self) -> str:
-        output: list[str] = [f"Failed to evaluate junk at {self.source}."]
+        output: list[str] = [f"Failed to evaluate junk at {self.junk.source}."]
         output.append("Context:")
-        if self.context:
-            for key, value in self.context.items():
+        if self.junk.eval_context:
+            for key, value in self.junk.eval_context.items():
                 output.append(f"  {key}: {value!r}")
         else:
             output.append("  <none>")
@@ -33,7 +32,7 @@ class EvaluationError(Exception):
                 line, template = self._parse_source(traceback.tb_frame.f_code.co_filename, traceback.tb_lineno)
             except Exception as error:
                 line, template = f'? ({error})', None
-            if traceback.tb_frame.f_code.co_filename == self.source:
+            if traceback.tb_frame.f_code.co_filename == self.junk.source:
                 file = "Junk"
             else:
                 file = f'File "{traceback.tb_frame.f_code.co_filename}"'
@@ -50,8 +49,8 @@ class EvaluationError(Exception):
         return "\n".join(output)
 
     def _parse_source(self, filename: str, line_number: int) -> tuple[str, tuple[str, pathlib.Path, int] | None]:
-        if filename == self.source:
-            source = self.meta
+        if filename == self.junk.source:
+            source = self.junk.to_string()
         else:
             path = pathlib.Path(filename)
             if not path.exists():
@@ -97,3 +96,6 @@ class EvaluationError(Exception):
 
     def _indent(self, indent: int, text: str) -> str:
         return "\n".join(f"{' ' * indent}{line}" for line in text.splitlines())
+
+
+from .junk import Junk

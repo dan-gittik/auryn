@@ -18,8 +18,7 @@ def transpile(
     junk = Junk(template, load_common=load_common, add_source_comments=add_source_comments, stack_level=1)
     if load:
         junk.load(load)
-    junk.meta_namespace.update({**(meta_context or {}), **meta_context_kwargs})
-    junk.transpile()
+    junk.transpile(meta_context, **meta_context_kwargs)
     return junk.to_string(standalone=standalone)
 
 
@@ -36,8 +35,7 @@ def render(
     junk = Junk(template, load_common=load_common, stack_level=1)
     if load:
         junk.load(load)
-    junk.meta_namespace.update(meta_context or {})
-    junk.transpile()
+    junk.transpile(meta_context)
     return junk.evaluate(context, **context_kwargs)
 
 

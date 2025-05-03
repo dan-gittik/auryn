@@ -554,7 +554,7 @@ def test_bookmark_indent() -> None:
 def test_bookmark_missing() -> None:
     line_number = this_line(+11)
     with pytest.raises(
-        ValueError,
+        EvaluationError,
         match=rf"missing bookmark 'y' referenced on line 5 at {THIS_FILE.name}:{line_number} \(available bookmarks are x\)",
     ):
         render(
@@ -739,5 +739,23 @@ def test_load_error() -> None:
         )
 
 
-def test_on_load() -> None:
-    pass  # TODO
+def test_meta_context() -> None:
+    received = transpile(
+        """
+        %
+            def f(junk, x):
+                junk.emit_code(f'print({x!r})')
+        %f: a
+        %f: b
+        """,
+        {'a': 1},
+        b='hello',
+        add_source_comments=False,
+    )
+    expected = trim(
+        """
+        print(1)
+        print('hello')
+        """
+    )
+    assert received == expected
