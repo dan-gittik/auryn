@@ -94,7 +94,6 @@ def skip_string(s, i):
             i += 1
             break
         if s[i] == "\\":
-            print(s[i : i + 2])
             i += 2
         else:
             i += 1

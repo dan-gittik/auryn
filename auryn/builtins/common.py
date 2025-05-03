@@ -32,7 +32,7 @@ def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path 
     if load:
         included_junk.load(load)
     if junk.has_line:
-        included_junk.lines.snap()
+        included_junk.lines.snap(junk.line.indent)
     included_junk.transpile()
     junk.emit_code(included_junk.to_string())
 

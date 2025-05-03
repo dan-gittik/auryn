@@ -215,7 +215,7 @@ class Junk:
         return f'concat({", ".join(args)})'
     
     @contextlib.contextmanager
-    def patch(self, **state: Any) -> None:
+    def patch(self, **state: Any) -> Iterator[None]:
         prev_state: dict[str, Any] = {}
         for key, value in state.items():
             prev_state[key] = getattr(self, key)

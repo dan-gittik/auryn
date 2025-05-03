@@ -49,7 +49,7 @@ class EvaluationError(Exception):
         output.append(f"{type(self.error).__name__}: {self.error}")
         return "\n".join(output)
 
-    def _parse_source(self, filename: str, line_number: int) -> tuple[str, tuple[str, str, str] | None]:
+    def _parse_source(self, filename: str, line_number: int) -> tuple[str, tuple[str, pathlib.Path, int] | None]:
         if filename == self.source:
             source = self.meta
         else:
