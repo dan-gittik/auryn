@@ -113,7 +113,7 @@ def test_comment_block() -> None:
 def test_meta_block() -> None:
     junk = Junk(
         """
-        %
+        %!
             x = 1
             def f(junk, s):
                 junk.emit_text(junk.line.indent, s)
@@ -243,7 +243,7 @@ def test_standalone_with_meta_module(tmp_path: pathlib.Path) -> None:
 def test_interpolate(capsys: pytest.CaptureFixture[str]) -> None:
     render(
         """
-        %
+        %!
             def print(junk, name=""):
                 junk.emit_code(f'print({junk.interpolate(name)})')
         %print

@@ -742,7 +742,7 @@ def test_load_error() -> None:
 def test_meta_context() -> None:
     received = transpile(
         """
-        %
+        %!
             def f(junk, x):
                 junk.emit_code(f'print({x!r})')
         %f: a
@@ -756,6 +756,71 @@ def test_meta_context() -> None:
         """
         print(1)
         print('hello')
+        """
+    )
+    assert received == expected
+
+
+def test_meta_code() -> None:
+    received = render(
+        """
+        %code x = {a}
+        {x}
+        """,
+        meta_context={"a": 1},
+    )
+    expected = "1"
+    assert received == expected
+
+
+def test_meta_text() -> None:
+    received = render(
+        """
+        %text {a} == {{x}}
+        """,
+        meta_context={"a": 1},
+        x=1,
+    )
+    expected = "1 == 1"
+    assert received == expected
+
+
+def test_meta_programming() -> None:
+    received = render(
+        """
+        %!for n, snippet in enumerate(snippets):
+            %!n += 1
+            %code n={n}
+            %text <p a="{n}" b="{{n}}">
+                %include: snippet
+            </p>
+        """,
+        meta_context={'snippets': [
+            """
+            hello {n}
+            """,
+            """
+            world {n}
+            """,
+            """
+            !for i in range(n):
+                line {i}
+            """,
+        ]},
+    )
+    expected = trim(
+        """
+        <p a="1" b="1">
+            hello 1
+        </p>
+        <p a="2" b="2">
+            world 2
+        </p>
+        <p a="3" b="3">
+            line 0
+            line 1
+            line 2
+        </p>
         """
     )
     assert received == expected

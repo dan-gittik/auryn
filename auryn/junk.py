@@ -16,10 +16,6 @@ type MetaCallback = Callable[[Junk], None]
 type MetaModule = str | pathlib.Path | dict[str, Any] | Iterable[MetaModule]
 
 
-class MetaFunction(Protocol):
-    def __call__(self, junk: Junk, *args: Any, **kwargs: Any) -> None: ...
-
-
 META_REGEX = re.compile(
     r"""
     ^
@@ -82,7 +78,7 @@ class Junk:
             "": text,
         }
         self.meta_context: dict[str, Any] = {}
-        self.meta_namespace: dict[str, MetaFunction] = {
+        self.meta_namespace: dict[str, Any] = {
             "junk": self,
             "load": load,
         }
@@ -197,9 +193,14 @@ class Junk:
             for key, value in prev_state.items():
                 setattr(self, key, value)
 
-    def emit_code(self, code: str) -> None:
+    def emit_code(self, code: str, add_source_comment: bool | None = None) -> None:
+        if add_source_comment is None:
+            add_source_comment = self.add_source_comments
         for _, code_line in split_lines(code):
-            self.meta_lines.append(self.code_indent * " " + code_line + self._source_comment)
+            code_line = self.code_indent * " " + code_line
+            if add_source_comment:
+                code_line += self._source_comment
+            self.meta_lines.append(code_line)
 
     @contextlib.contextmanager
     def increase_code_indent(self) -> Iterator[None]:
@@ -251,6 +252,7 @@ class Junk:
             junk.lines.set_source(self.line.source_path, self.line.source_line_number)
         else:
             junk.lines.set_source(self.lines.source_path, self.lines.source_line_number)
+        junk.add_source_comments = self.add_source_comments
         junk.meta_state = self.meta_state
         return junk
 
@@ -290,8 +292,6 @@ class Junk:
 
     @property
     def _source_comment(self) -> str:
-        if not self.add_source_comments or not self.has_line:
-            return ""
         if self.line.path:
             return f"  # {self.line.path}:{self.line.number}"
         return f"  # {self.line.source_path}:{self.line.source_line_number}"
@@ -351,15 +351,26 @@ def code(junk: Junk, content: str) -> None:
 
 
 def meta(junk: Junk, content: str) -> None:
-    # empty line or meta block
+    # empty line
     if not content:
-        # empty line
-        if not junk.line.children:
-            junk.emit_text(0, "")
+        junk.emit_text(0, "")
+        return
+    # meta code
+    if content.startswith(junk.code_prefix):
+        meta_code = content.removeprefix(junk.code_prefix).lstrip()
+        # meta code block
+        if not meta_code:
+            meta_code = junk.line.children.snap(0).to_string()
+            exec(meta_code, junk.meta_namespace)
             return
-        # meta block
-        meta_code = junk.line.children.snap(0).to_string()
-        exec(meta_code, junk.meta_namespace)
+        # meta code line
+        if not junk.line.children:
+            exec(meta_code, junk.meta_namespace)
+            return
+        # meta code line with children
+        proceed = lambda: junk.proceed(junk.line.children.snap())
+        meta_code += "\n    _()"
+        exec(meta_code, {"_": proceed}, junk.meta_namespace)
         return
     # meta function
     match = META_REGEX.match(content)

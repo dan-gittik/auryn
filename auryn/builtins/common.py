@@ -21,6 +21,20 @@ class Bookmark:
         return "".join(map(str, self.lines))
 
 
+def meta_code(junk: Junk, code: str) -> None:
+    code = eval(f'f{code!r}', junk.meta_namespace)
+    junk.emit_code(code)
+    junk.proceed()
+    with junk.increase_code_indent():
+        junk.proceed(junk.line.children.snap())
+
+
+def meta_text(junk: Junk, text: str) -> None:
+    text = eval(f'f{text!r}', junk.meta_namespace)
+    junk.emit_text(junk.line.indent, text)
+    junk.proceed()
+
+
 def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path | dict[str, Any] | None = None) -> None:
     included_junk = junk.derive(path)
     if load:
@@ -28,7 +42,7 @@ def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path 
     if junk.has_line:
         included_junk.lines.snap(junk.line.indent)
     included_junk.transpile(junk.meta_context)
-    junk.emit_code(included_junk.to_string())
+    junk.emit_code(included_junk.to_string(), add_source_comment=False)
 
 
 def meta_define(junk: Junk, name: str) -> None:
