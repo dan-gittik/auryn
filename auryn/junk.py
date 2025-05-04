@@ -4,12 +4,12 @@ import contextlib
 import pathlib
 import re
 import sys
-from typing import Any, Callable, ClassVar, Iterable, Iterator, Protocol
+from typing import Any, Callable, ClassVar, Iterable, Iterator
 
 from .collect import collect_definitions, collect_global_references
 from .interpolate import interpolate as interpolate_, parse_arguments
 from .lines import Line, Lines
-from .utils import and_, split_lines
+from .utils import and_, is_path, split_lines
 
 type Transpiler = Callable[[Junk, str], None]
 type MetaCallback = Callable[[Junk], None]
@@ -160,7 +160,7 @@ class Junk:
         except StopEvaluation:
             pass
         except Exception as error:
-            raise EvaluationError(self, error)
+            raise EvaluationError(self, error) from None
         return "".join(map(str, self.eval_lines)).rstrip()
     
     def proceed(self, lines: Lines | None = None) -> None:
@@ -232,6 +232,12 @@ class Junk:
         if self.inline:
             args.append("inline=True")
         self.emit_code(f'{self.EMIT}({indent}, {", ".join(args)})')
+    
+    def emit_text_block(self, indent: int, text: str, interpolate: bool | None = None) -> None:
+        if interpolate is None:
+            interpolate = self.interpolate_by_default
+        for _, line in split_lines(text):
+            self.emit_text(indent, line, interpolate=interpolate)
 
     def interpolate(self, string: str) -> str:
         args = []
@@ -244,8 +250,8 @@ class Junk:
             return f"str({args[0]})"
         return f'concat({", ".join(args)})'
 
-    def derive(self, template: str | pathlib.Path) -> Junk:
-        if isinstance(template, pathlib.Path) or "\n" not in template:
+    def derive(self, template: str | pathlib.Path, with_namespace: bool = False) -> Junk:
+        if is_path(template, self.path.parent):
             template = self.path.parent / template
         junk = type(self)(template)
         if self.has_line:
@@ -254,6 +260,9 @@ class Junk:
             junk.lines.set_source(self.lines.source_path, self.lines.source_line_number)
         junk.add_source_comments = self.add_source_comments
         junk.meta_state = self.meta_state
+        if with_namespace:
+            junk.meta_namespace = self.meta_namespace.copy()
+            junk.meta_namespace["junk"] = junk
         return junk
 
     def emit(

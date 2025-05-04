@@ -277,3 +277,32 @@ def test_no_transpilers() -> None:
         match=rf"unable to transpile line 1 at {THIS_FILE.name}:{line_number + 1} \(considered <none>\)",
     ):
         junk.transpile()
+    
+
+def test_emit_text_block() -> None:
+    received = render(
+        """
+        %!
+            def f(junk, interpolate=None):
+                junk.emit_text_block(junk.line.indent,
+                    '''
+                    line {a}
+                    line {b}
+                    ''',
+                    interpolate=interpolate,
+                )
+        %f
+        %f: interpolate=False
+        """,
+        a=1,
+        b=2,
+    )
+    expected = trim(
+        """
+        line 1
+        line 2
+        line {a}
+        line {b}
+        """
+    )
+    assert received == expected

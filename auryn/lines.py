@@ -4,7 +4,7 @@ import inspect
 import pathlib
 from typing import Iterator
 
-from .utils import split_line, split_lines
+from .utils import is_path, split_line, split_lines
 
 
 class Lines:
@@ -22,13 +22,13 @@ class Lines:
             self._source_path, self._source_line_number = self._get_source(stack_level + 1)
         self.lines: list[Line] = []
         if template:
-            if isinstance(template, str) and "\n" in template:
-                text = template
-                offset = 1
-            else:
+            if is_path(template):
                 self._path = pathlib.Path(template)
                 text = self._path.read_text()
                 offset = 0
+            else:
+                text = template
+                offset = 1
             stack: list[Line] = []
             for number, line_text in split_lines(text):
                 indent, content = split_line(line_text)

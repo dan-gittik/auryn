@@ -761,10 +761,10 @@ def test_meta_context() -> None:
     assert received == expected
 
 
-def test_meta_code() -> None:
+def test_meta_eval() -> None:
     received = render(
         """
-        %code x = {a}
+        %eval x = {a}
         {x}
         """,
         meta_context={"a": 1},
@@ -773,10 +773,10 @@ def test_meta_code() -> None:
     assert received == expected
 
 
-def test_meta_text() -> None:
+def test_meta_emit() -> None:
     received = render(
         """
-        %text {a} == {{x}}
+        %emit {a} == {{x}}
         """,
         meta_context={"a": 1},
         x=1,
@@ -790,8 +790,8 @@ def test_meta_programming() -> None:
         """
         %!for n, snippet in enumerate(snippets):
             %!n += 1
-            %code n={n}
-            %text <p a="{n}" b="{{n}}">
+            %eval n={n}
+            %emit <p a="{n}" b="{{n}}">
                 %include: snippet
             </p>
         """,
@@ -821,6 +821,158 @@ def test_meta_programming() -> None:
             line 1
             line 2
         </p>
+        """
+    )
+    assert received == expected
+
+
+def test_include_rendering() -> None:
+    include_text = trim(
+        """
+        !for i in range(n):
+            line {i}
+        """
+    )
+
+    received = render(
+        """
+        %include: text
+        """,
+        meta_context={"text": include_text},
+        n=3,
+    )
+    expected = trim(
+        """
+        line 0
+        line 1
+        line 2
+        """
+    )
+    assert received == expected
+
+    received = render(
+        """
+        %include: text render=False
+        """,
+        meta_context={"text": include_text},
+        i=0,
+    )
+    expected = trim(
+        """
+        !for i in range(n):
+            line 0
+        """
+    )
+    assert received == expected
+
+    received = render(
+        """
+        %include: text render=False interpolate=False
+        """,
+        meta_context={"text": include_text},
+    )
+    expected = trim(
+        """
+        !for i in range(n):
+            line {i}
+        """
+    )
+    assert received == expected
+
+
+def test_include_raw_path(tmp_path: pathlib.Path) -> None:
+    include_path = tmp_path / "include.txt"
+    include_text = trim(
+        """
+        !for i in range(n):
+            line {i}
+        """
+    )
+    include_path.write_text(include_text)
+
+    received = render(
+        """
+        %include: path
+        """,
+        meta_context={"path": include_path},
+        n=3,
+    )
+    expected = trim(
+        """
+        line 0
+        line 1
+        line 2
+        """
+    )
+    assert received == expected
+
+    received = render(
+        """
+        %include: path render=False
+        """,
+        meta_context={"path": include_path},
+        i=0,
+    )
+    expected = trim(
+        """
+        !for i in range(n):
+            line 0
+        """
+    )
+    assert received == expected
+
+    received = render(
+        """
+        %include: path render=False interpolate=False
+        """,
+        meta_context={"path": include_path},
+    )
+    expected = trim(
+        """
+        !for i in range(n):
+            line {i}
+        """
+    )
+    assert received == expected
+
+
+def test_drive_with_namespace(tmp_path: pathlib.Path) -> None:
+    meta_path = tmp_path / "meta.py"
+    meta_code = trim(
+        """
+        def meta_hello(junk, name):
+            junk.emit_text(0, f"hello {name}")
+        """
+    )
+    meta_path.write_text(meta_code)
+
+    include_text = "%hello inside"
+
+    with pytest.raises(
+        ValueError,
+        match=r"unknown meta function 'hello' on line 0 at .* \(available meta functions are .*\)",
+    ):
+        render(
+            """
+            %hello outside
+            %include: text
+            """,
+            meta_context={"text": include_text},
+            load=meta_path,
+        )
+    
+    received = render(
+        """
+        %hello outside
+        %include: text with_namespace=True
+        """,
+        meta_context={"text": include_text},
+        load=meta_path,
+    )
+    expected = trim(
+        """
+        hello outside
+        hello inside
         """
     )
     assert received == expected

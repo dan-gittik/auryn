@@ -1,9 +1,33 @@
+import pathlib
 import re
-from typing import Iterator
+from typing import Any, Iterable, Iterator
 
 LEADING_EMPTY_LINES = re.compile(r"^([ \t]*\r?\n)+")
 LINE_REGEX = re.compile(r"^(\s*)(.*)$")
 OPEN_LINE_SUFFIX = "\\"
+
+
+def concat(iterable: Iterable[Any], conjunction: str, quote: bool = False) -> str:
+    items = list(iterable)
+    if quote:
+        cast = repr
+    else:
+        cast = str
+    if not items:
+        return "<none>"
+    if len(items) == 1:
+        return cast(items[0])
+    if len(items) == 2:
+        return f"{cast(items[0])} {conjunction} {cast(items[1])}"
+    return ", ".join(map(cast, items[:-1])) + f" {conjunction} {cast(items[-1])}"
+
+
+def and_(iterable: Iterable[Any], quote: bool = False) -> str:
+    return concat(iterable, "and", quote)
+
+
+def or_(iterable: Iterable[Any], quote: bool = False) -> str:
+    return concat(iterable, "or", quote)
 
 
 def split_line(text: str) -> tuple[int, str]:
@@ -55,3 +79,13 @@ def split_lines(text: str) -> Iterator[tuple[int, str]]:
         yield number, line
     if open_line:
         yield open_line_number, " ".join(open_line)
+
+
+def is_path(path: str | pathlib.Path, parent: pathlib.Path | None = None) -> bool:
+    if isinstance(path, pathlib.Path):
+        return True
+    if "\n" in path:
+        return False
+    if parent:
+        return (parent / path).exists()
+    return pathlib.Path(path).exists()

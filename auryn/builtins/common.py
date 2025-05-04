@@ -3,7 +3,7 @@ import pathlib
 from typing import Any, Iterator
 
 from auryn import Junk, Lines
-from auryn.utils import and_
+from auryn.utils import and_, is_path
 
 UNDEFINED = object()
 DEFINITIONS = "definitions"
@@ -21,7 +21,7 @@ class Bookmark:
         return "".join(map(str, self.lines))
 
 
-def meta_code(junk: Junk, code: str) -> None:
+def meta_eval(junk: Junk, code: str) -> None:
     code = eval(f'f{code!r}', junk.meta_namespace)
     junk.emit_code(code)
     junk.proceed()
@@ -29,14 +29,28 @@ def meta_code(junk: Junk, code: str) -> None:
         junk.proceed(junk.line.children.snap())
 
 
-def meta_text(junk: Junk, text: str) -> None:
+def meta_emit(junk: Junk, text: str) -> None:
     text = eval(f'f{text!r}', junk.meta_namespace)
     junk.emit_text(junk.line.indent, text)
     junk.proceed()
 
 
-def meta_include(junk: Junk, path: str | pathlib.Path, load: str | pathlib.Path | dict[str, Any] | None = None) -> None:
-    included_junk = junk.derive(path)
+def meta_include(
+    junk: Junk,
+    template: str | pathlib.Path,
+    load: str | pathlib.Path | dict[str, Any] | None = None,
+    render: bool = True,
+    interpolate: bool = True,
+    with_namespace: bool = False,
+) -> None:
+    if not render:
+        if is_path(template, junk.path.parent):
+            path = junk.path.parent / template
+            junk.emit_text_block(junk.line.indent, path.read_text(), interpolate=interpolate)
+        else:
+            junk.emit_text_block(junk.line.indent, template, interpolate=interpolate)
+        return
+    included_junk = junk.derive(template, with_namespace=with_namespace)
     if load:
         included_junk.load(load)
     if junk.has_line:
@@ -89,7 +103,7 @@ def meta_interpolate(junk: Junk, interpolation: str) -> None:
 def meta_raw(junk: Junk) -> None:
     if junk.line.children:
         text = junk.line.children.snap().to_string()
-        junk.emit_text(0, text, interpolate=False)
+        junk.emit_text_block(0, text, interpolate=False)
     else:
         junk.transpilers.clear()
         junk.transpilers[""] = emit_raw
