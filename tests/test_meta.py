@@ -748,8 +748,8 @@ def test_meta_context() -> None:
         %f: a
         %f: b
         """,
-        {'a': 1},
-        b='hello',
+        {"a": 1},
+        b="hello",
         add_source_comments=False,
     )
     expected = trim(
@@ -795,18 +795,20 @@ def test_meta_programming() -> None:
                 %include: snippet
             </p>
         """,
-        meta_context={'snippets': [
-            """
+        meta_context={
+            "snippets": [
+                """
             hello {n}
             """,
-            """
+                """
             world {n}
             """,
-            """
+                """
             !for i in range(n):
                 line {i}
             """,
-        ]},
+            ]
+        },
     )
     expected = trim(
         """
@@ -960,7 +962,7 @@ def test_drive_with_namespace(tmp_path: pathlib.Path) -> None:
             meta_context={"text": include_text},
             load=meta_path,
         )
-    
+
     received = render(
         """
         %hello outside

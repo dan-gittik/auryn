@@ -31,7 +31,7 @@ class EvaluationError(Exception):
             try:
                 line, template = self._parse_source(traceback.tb_frame.f_code.co_filename, traceback.tb_lineno)
             except Exception as error:
-                line, template = f'? ({error})', None
+                line, template = f"? ({error})", None
             if traceback.tb_frame.f_code.co_filename == self.junk.source:
                 file = "Junk"
             else:
@@ -69,7 +69,10 @@ class EvaluationError(Exception):
                 raise ValueError(f"template {template_path} does not exist")
             template_lines = template_path.read_text().splitlines()
             if template_line_number > len(template_lines):
-                raise ValueError(f"template {template_path} has only {len(template_lines)} lines, unable to find line {template_line_number}")
+                raise ValueError(
+                    f"template {template_path} has only {len(template_lines)} lines, "
+                    f"unable to find line {template_line_number}"
+                )
             template_line = template_lines[template_line_number - 1].strip()
             template = template_line, template_path, template_line_number
         else:

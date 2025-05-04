@@ -4,7 +4,7 @@ import pytest
 
 from auryn import EvaluationError, Junk, render
 
-from .conftest import trim, this_line
+from .conftest import this_line, trim
 
 THIS_FILE = pathlib.Path(__file__)
 
@@ -48,10 +48,10 @@ def test_evaluation_error_nested(tmp_path: pathlib.Path) -> None:
         """
         def error(x):
             raise ValueError(x)
-        
+
         def meta_error(junk, x):
             junk.emit_code(f"error({junk.interpolate(x)})")
-        
+
         def eval_error(junk, x):
             junk.emit(0, error(x))
         """
@@ -96,7 +96,7 @@ def test_evaluation_error_incomplete(tmp_path: pathlib.Path) -> None:
         """
         def meta_error(junk, x):
             junk.emit_code(f"error({junk.interpolate(x)})")
-        
+
         def eval_error(junk, x):
             raise ValueError(x)
         """

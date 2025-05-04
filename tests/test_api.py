@@ -277,7 +277,7 @@ def test_no_transpilers() -> None:
         match=rf"unable to transpile line 1 at {THIS_FILE.name}:{line_number + 1} \(considered <none>\)",
     ):
         junk.transpile()
-    
+
 
 def test_emit_text_block() -> None:
     received = render(

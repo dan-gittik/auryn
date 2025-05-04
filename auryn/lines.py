@@ -27,7 +27,7 @@ class Lines:
                 text = self._path.read_text()
                 offset = 0
             else:
-                text = template
+                text = str(template)
                 offset = 1
             stack: list[Line] = []
             for number, line_text in split_lines(text):

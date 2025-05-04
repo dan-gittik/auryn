@@ -55,7 +55,7 @@ def lint(args: list[str]) -> None:
     for path in paths:
         _execute("black", f"--line-length={LINE_LENGTH}", path)
         _execute("isort", "--profile=black", path)
-        _execute("flake8", f"--max-line-length={LINE_LENGTH}", "--extend-ignore=E203", path)
+        _execute("flake8", f"--max-line-length={LINE_LENGTH}", "--extend-ignore=E203,E402", path)
 
 
 def type(args: list[str]) -> None:

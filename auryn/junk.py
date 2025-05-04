@@ -7,7 +7,8 @@ import sys
 from typing import Any, Callable, ClassVar, Iterable, Iterator
 
 from .collect import collect_definitions, collect_global_references
-from .interpolate import interpolate as interpolate_, parse_arguments
+from .interpolate import interpolate as interpolate_
+from .interpolate import parse_arguments
 from .lines import Line, Lines
 from .utils import and_, is_path, split_lines
 
@@ -117,7 +118,7 @@ class Junk:
     @property
     def source(self) -> str:
         return self.lines.source
-    
+
     @property
     def has_line(self) -> bool:
         return bool(self._active_lines)
@@ -125,7 +126,7 @@ class Junk:
     @property
     def line(self) -> Line:
         return self._active_lines[-1]
-    
+
     def load(self, target: MetaModule) -> None:
         load(self, target)
 
@@ -162,7 +163,7 @@ class Junk:
         except Exception as error:
             raise EvaluationError(self, error) from None
         return "".join(map(str, self.eval_lines)).rstrip()
-    
+
     def proceed(self, lines: Lines | None = None) -> None:
         if lines is None:
             lines = self.line.children
@@ -232,7 +233,7 @@ class Junk:
         if self.inline:
             args.append("inline=True")
         self.emit_code(f'{self.EMIT}({indent}, {", ".join(args)})')
-    
+
     def emit_text_block(self, indent: int, text: str, interpolate: bool | None = None) -> None:
         if interpolate is None:
             interpolate = self.interpolate_by_default
@@ -377,9 +378,8 @@ def meta(junk: Junk, content: str) -> None:
             exec(meta_code, junk.meta_namespace)
             return
         # meta code line with children
-        proceed = lambda: junk.proceed(junk.line.children.snap())
         meta_code += "\n    _()"
-        exec(meta_code, {"_": proceed}, junk.meta_namespace)
+        exec(meta_code, {"_": lambda: junk.proceed(junk.line.children.snap())}, junk.meta_namespace)
         return
     # meta function
     match = META_REGEX.match(content)

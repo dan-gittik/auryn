@@ -1,6 +1,6 @@
 import pathlib
 import re
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, TypeGuard
 
 LEADING_EMPTY_LINES = re.compile(r"^([ \t]*\r?\n)+")
 LINE_REGEX = re.compile(r"^(\s*)(.*)$")
@@ -81,7 +81,7 @@ def split_lines(text: str) -> Iterator[tuple[int, str]]:
         yield open_line_number, " ".join(open_line)
 
 
-def is_path(path: str | pathlib.Path, parent: pathlib.Path | None = None) -> bool:
+def is_path(path: str | pathlib.Path, parent: pathlib.Path | None = None) -> TypeGuard[pathlib.Path]:
     if isinstance(path, pathlib.Path):
         return True
     if "\n" in path:

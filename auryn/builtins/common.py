@@ -22,7 +22,7 @@ class Bookmark:
 
 
 def meta_eval(junk: Junk, code: str) -> None:
-    code = eval(f'f{code!r}', junk.meta_namespace)
+    code = eval(f"f{code!r}", junk.meta_namespace)
     junk.emit_code(code)
     junk.proceed()
     with junk.increase_code_indent():
@@ -30,7 +30,7 @@ def meta_eval(junk: Junk, code: str) -> None:
 
 
 def meta_emit(junk: Junk, text: str) -> None:
-    text = eval(f'f{text!r}', junk.meta_namespace)
+    text = eval(f"f{text!r}", junk.meta_namespace)
     junk.emit_text(junk.line.indent, text)
     junk.proceed()
 
@@ -48,7 +48,7 @@ def meta_include(
             path = junk.path.parent / template
             junk.emit_text_block(junk.line.indent, path.read_text(), interpolate=interpolate)
         else:
-            junk.emit_text_block(junk.line.indent, template, interpolate=interpolate)
+            junk.emit_text_block(junk.line.indent, str(template), interpolate=interpolate)
         return
     included_junk = junk.derive(template, with_namespace=with_namespace)
     if load:
@@ -149,7 +149,7 @@ def meta_inline(junk: Junk) -> None:
 
 
 def meta_assign(junk: Junk, name: str) -> None:
-    junk.emit_code(f"with assign() as _:")
+    junk.emit_code("with assign() as _:")
     with junk.increase_code_indent():
         junk.proceed(junk.line.children.snap())
     junk.emit_code(f"{name} = ''.join(_).strip()")
