@@ -1,7 +1,7 @@
 import pathlib
 from typing import Any
 
-from .junk import Junk
+from .junk import Junk, MetaModule
 
 
 def transpile(
@@ -11,7 +11,7 @@ def transpile(
     *,
     load_common: bool | None = None,
     add_source_comments: bool | None = None,
-    load: str | pathlib.Path | dict[str, Any] | None = None,
+    load: MetaModule | None = None,
     standalone: bool | None = None,
     **meta_context_kwargs: Any,
 ) -> str:
@@ -28,7 +28,7 @@ def render(
     /,
     *,
     load_common: bool | None = None,
-    load: str | pathlib.Path | dict[str, Any] | None = None,
+    load: MetaModule | None = None,
     meta_context: dict[str, Any] | None = None,
     **context_kwargs: Any,
 ) -> str:

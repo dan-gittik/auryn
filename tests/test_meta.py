@@ -938,7 +938,7 @@ def test_include_raw_path(tmp_path: pathlib.Path) -> None:
     assert received == expected
 
 
-def test_drive_with_namespace(tmp_path: pathlib.Path) -> None:
+def test_include_with_namespace(tmp_path: pathlib.Path) -> None:
     meta_path = tmp_path / "meta.py"
     meta_code = trim(
         """
@@ -975,6 +975,30 @@ def test_drive_with_namespace(tmp_path: pathlib.Path) -> None:
         """
         hello outside
         hello inside
+        """
+    )
+    assert received == expected
+
+
+def test_ifdef() -> None:
+    received = render(
+        """
+        %define x
+            hello
+        %ifdef x
+            %insert x
+        %ifdef y
+            %insert y
+        %ifndef x
+            no x
+        %ifndef y
+            no y
+        """
+    )
+    expected = trim(
+        """
+        hello
+        no y
         """
     )
     assert received == expected

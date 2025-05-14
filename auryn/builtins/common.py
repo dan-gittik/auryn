@@ -64,6 +64,16 @@ def meta_define(junk: Junk, name: str) -> None:
     definitions[name] = junk.line.children
 
 
+def meta_ifdef(junk: Junk, name: str) -> None:
+    if name in junk.meta_state.get(DEFINITIONS, {}):
+        junk.proceed(junk.line.children.snap())
+
+
+def meta_ifndef(junk: Junk, name: str) -> None:
+    if name not in junk.meta_state.get(DEFINITIONS, {}):
+        junk.proceed(junk.line.children.snap())
+
+
 def meta_insert(junk: Junk, name: str, required: bool = False) -> None:
     definitions: dict[str, Lines] = junk.meta_state.get(DEFINITIONS, {})
     if name not in definitions:
