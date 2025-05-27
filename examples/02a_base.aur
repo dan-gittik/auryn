@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        %insert head
+    </head>
+    <body>
+        %insert body
+    </body>
+</html>

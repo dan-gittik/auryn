@@ -1,0 +1,18 @@
+{
+    "n": {
+        "type": "integer",
+        "min": 1,
+        "max": 10
+    },
+    "p": {
+        "type": "object",
+        "attributes": {
+            "x": {
+                "type": "integer"
+            },
+            "y": {
+                "type": "integer"
+            }
+        }
+    }
+}

@@ -4,11 +4,18 @@ A metaprogramming engine for extensible templating and code generation.
 
 - [Installation](#installation)
 - [Quickstart](#quickstart)
-- [Macros](#macros)
-- [Filesystem Macros](#filesystem-macros)
-- [Advanced Syntax](#advanced-syntax)
+    - [Simple Templating](#simple-templating)
+    - [Template Composition](#template-composition)
+    - [Recursive Code Generation](#recursive-code-generation)
+    - [Directory Structure Generation](#directory-structure-generation)
+- [Ovreview](#overview)
+    - [Generation/Execution](#generationexecution)
+    - [Standalone Code](#standalone-code)
+    - [Core Macros](#core-macros)
+    - [Filesystem Macros](#filesystem-macros)
+    - [Advanced Syntax](#advanced-syntax)
 - [Plugin Development](#plugin-development)
-- [Understanding Errors](#understanding-errors)
+    - [Understanding Errors](#understanding-errors)
 - [CLI](#cli)
 - [Local Development](#local-development)
 - [License](#license)
@@ -17,7 +24,7 @@ A metaprogramming engine for extensible templating and code generation.
 
 ## Installation
 
-**Requires Python > 3.12.**
+**Requires Python ≥ 3.12.**
 
 From PyPI:
 
@@ -39,65 +46,251 @@ The project is pure Python and has no dependencies.
 
 ## Quickstart
 
-Auryn works in two phases:
-
-1. **Generation**: generate code according to given a **template**;
-2. **Execution**: run the **generated code** to produce an **output**.
-
-Templates are parsed by lines, where each line can be:
-
-1. **text**: emitted as output after **interpolation**;
-2. **code** (`!` prefix): runs during execution;
-3. **macro** (`%` prefix): runs during generation.
-
-For example:
+### Simple Templating
 
 ```pycon
->>> from auryn import execute
+>>> import auryn
 
->>> output = execute('''
+>>> output = auryn.execute(
+...     """
 ...     !for i in range(n):
 ...         line {i}
-... ''', n=3)
-line 0
-line 1
-line 2
-```
-
-`!for i in range(n):` is a code line; it becomes part of the generated code, and will run during execution (with `n=3`).
-`line {i}` is a text line; it is emitted as output, so the code it generates is one that emits `'line ', i`. To see that
-code for ourselves, we can call `generate` to perform the generation phase only:
-
-```pycon
->>> from auryn import generate
-
->>> code = generate('''
-...     !for i in range(n):
-...         line {i}
-... ''')
->>> print(code)
-for i in range(n):
-    emit(0, 'line ', i)
-```
-
-We can thus split the two phases: generate code at one time, and execute it later (e.g. to improve
-performance). To do that, we generate the code with `standalone=True`, then use `execute_standalone`:
-
-```pycon
->>> from auryn import execute_standalone
->>> code = generate('''
-...     !for i in range(n):
-...         line {i}
-... ''', standalone=True)
->>> # Later...
->>> output = execute_standalone(code, n=3)
+...     """,
+...     n=3,
+... )
 >>> print(output)
 line 0
 line 1
 line 2
 ```
 
-Templates can be stored in files:
+### Template Composition
+
+```
+!# base.aur
+<!DOCTYPE html>
+<html>
+    <head>
+        %insert head
+    </head>
+    <body>
+        %insert body
+    </body>
+<html>
+```
+
+```
+#! meta.aur
+<meta charset="utf8" />
+<meta name="author" content="{author}" />
+<meta name="description" content="{description}" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+```
+
+```pycon
+>>> output = auryn.execute(
+...     """
+...     %extend base.aur
+...     %define head
+...         <title>{title}</title>
+...         %include meta.aur
+...     %define body
+...         <p>{message}</p>
+...     """,
+...     title="Auryn",
+...     author="Dan Gittik",
+...     description="The Auryn metaprogramming engine",
+...     message="Metaprogramming is cool!",
+... )
+>>> print(output)
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Auryn</title>
+        <meta charset="utf8" />
+        <meta name="author" content="Dan Gittik" />
+        <meta name="description" content="The Auryn metaprogramming engine" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    </head>
+    <body>
+        <p>Metaprogramming is cool!</p>
+    </body>
+</html>
+```
+
+### Recursive Code Generation
+
+```
+!# typechecking.aur
+%interpolate <% %>
+!def check_integer(name, min=None, max=None):
+    if not isinstance(<% name %>, int):
+        raise ValueError(f"expected {<% name %>=} to be an integer")
+    !if min is not None:
+        if <% name %> < <% min% >:
+            raise ValueError(f"expected {<% name %>=} >= <% min %>")
+    !if max is not None:
+        if <% name %> > <% min% >:
+            raise ValueError(f"expected {<% name %>=} <= <% max %>")
+
+!def check_types(name, config):
+    !if config["type"] == "integer":
+        !check_integer(name, config.get("min"), config.get("max"))
+    !if config["type"] == "object":
+        if not isinstance(<% name %>, object):
+            raise ValueError(f"expected {<% name %>=} to be an object")
+        !for key, value in config["attributes"].items():
+            !check_types(f"{name}.{key}", value)
+```
+
+```json
+// model.json
+{
+    "n": {
+        "type": "integer",
+        "min": 1,
+        "max": 10
+    },
+    "p": {
+        "type": "object",
+        "attributes": {
+            "x": {
+                "type": "integer"
+            },
+            "y": {
+                "type": "integer"
+            }
+        }
+    }
+}
+```
+
+```pycon
+>>> import json
+>>> output = auryn.execute(
+...     """
+...     def validate(
+...         !for key in model:
+...             {key},
+...     ):
+...         !for key, value in model.items():
+...             !check_types(key, value)
+...     """,
+...     model=json.load(open("model.json")),
+... )
+... print(output)
+def validate(
+    n,
+    p,
+):
+    if not isinstance(n, int):
+        raise ValueError(f"expected {n=} to be an integer")
+    if n < 1:
+        raise ValueError(f"expected {n=} >= 1")
+    if n > 1:
+        raise ValueError(f"expected {n=} <= 10")
+    if not isinstance(p, object):
+        raise ValueError(f"expected {p=} to be an object")
+    if not isinstance(p.x, int):
+        raise ValueError(f"expected {p.x=} to be an integer")
+    if not isinstance(p.y, int):
+        raise ValueError(f"expected {p.y=} to be an integer")
+```
+
+### Directory Structure Generation
+
+```pycon
+>>> auryn.execute(
+...     """
+...     %load filesystem
+...     dir/
+...         !for i in range(n):
+...             script{i}.sh
+...                 echo hello {i}!
+...             $ chmod +x script{i}.sh
+...     """,
+...     n=3,
+... )
+```
+
+```
+$ dir/script0.sh
+hello 0!
+$ dir/script1.sh
+hello 1!
+$ dir/script2.sh
+hello 2!
+```
+
+## Overview
+
+### Generation/Execution
+
+Auryn works in two **phases**:
+
+1. **Generation**: generate code according to a **template**;
+2. **Execution**: run the **generated code** to produce an **output**.
+
+Templates are parsed line by lines, where each line can be:
+
+1. A **text line**: emitted as output (after **interpolation**);
+2. A **code line** (starting with `!`): runs during execution;
+3. A **macro line** (starting with `%`): runs during generation.
+
+For example:
+
+```pycon
+>>> output = auryn.execute(
+...     """
+...     !for i in range(n):
+...         line {i}
+...     """,
+...     n=3)
+line 0
+line 1
+line 2
+```
+
+`!for i in range(n):` is a code line; it becomes part of the generated code, to be run during execution (with `n=3`).
+`line {i}` is a text line; it's emitted as output – that is, generates code that emits `'line ', i`. To see this code
+for ourselves we can call `generate`, which performs the generation phase only:
+
+```pycon
+>>> code = auryn.generate(
+...     """
+...     !for i in range(n):
+...         line {i}
+...     """
+... )
+>>> print(code)
+for i in range(n):
+    emit(0, 'line ', i)
+```
+
+### Standalone Code
+
+We can thus split the two phases: generate code at one time, and execute it later (e.g. to improve performance). To do
+that, we need to generate the code with `standalone=True`, then pass it to `execute_standalone`:
+
+```pycon
+>>> code = auryn.generate(
+...     """
+...     !for i in range(n):
+...         line {i}
+...     """,
+...     standalone=True,
+... )
+>>> # Later...
+>>> output = auryn.execute_standalone(code, n=3)
+>>> print(output)
+line 0
+line 1
+line 2
+```
+
+### Templates
+
+The templates in the examples so far were all strings, but they can also be stored in files:
 
 ```
 # loop.aur
@@ -106,21 +299,37 @@ Templates can be stored in files:
 ```
 
 ```pycon
->>> output = execute('loop.aur', n=3)
+>>> output = execute("loop.aur", n=3)
 ```
 
-Or, as we've seen, in strings – in which case they *must* be multiline, to tell them apart from paths. To accommodate
-code indentation naturally, these multiline strings are cropped, removing the indent of their first non-empty line; so
-the `loop.aur` template above is equivalent to our previous examples:
+To tell the two cases apart, string templates *must* be multiline. To be fair, one-line templates aren't particularly
+interesting to begin with, but even in cases when we have them we should do:
 
 ```pycon
->>> output = execute('''
-...     !for i in range(n):
-...         line {i}
-... ''', n=3)
+>>> output = auryn.execute(
+...     """
+...     hello world
+...     """
+... )
 ```
 
-## Macros
+Rather than `auryn.execute("hello world")`, since the latter will be interpreted as a path. As for multiline strings,
+they get intelligently cropped, removing the indent of their first non-empty line from all subsequent lines, so that
+they can accommodate the code's indentation without the extra whitespace getting in the way; hence, in our previous
+examples:
+
+```pycon
+>>> output = auryn.execute(
+...     """
+...     !for i in range(n):
+...         line {i}
+...     """
+... )
+```
+
+We effectively end up with a template identical to `loop.aur`.
+
+### Core Macros
 
 Auryn's strength is its extensibility: we can write Python **plugins** that extend its generation through **macros**,
 and its execution through **hooks**. Before we talk about it, however, common patterns are already implemented as part
@@ -354,7 +563,7 @@ to it later on:
 </html>
 ```
 
-## Filesystem Macros
+### Filesystem Macros
 
 Another builtin plugin exists to generate entire directory structures. This, for example:
 
@@ -435,7 +644,7 @@ $ curl {url} # into="content" status_into="status"
 
 As well as raise an error if the command fails (`strict=True`) or exceeds a time limit (`timeout=`).
 
-## Advanced Syntax
+### Advanced Syntax
 
 To add multiline code, instead of prefixing each line with `!`:
 
@@ -747,7 +956,7 @@ and learn from there. We can add post-processing with `on_complete` (which `%ext
 to replace it with our own list (which is how files capture and then write their content), replace the line transforms
 at load time with `on_load` and `line_transform` and so on – do let me know what fun ideas you come up with :)
 
-## Understanding Errors
+### Understanding Errors
 
 When working with so many layers of abstractions, bugs can be difficult to reason about. For that reason, Auryn raises
 either a `GenerationError` or an `ExecutionError`, depending on what phase the issue occured in, that can print a
