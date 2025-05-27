@@ -4,12 +4,113 @@ import pathlib
 import sys
 from typing import Any
 
-from .api import evaluate, render, transpile
-from .errors import EvaluationError
+from .api import execute, execute_standalone, generate
+from .errors import Error
 
 
-def parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str, Any]:
-    context = {}
+def cli(argv: list[str] | None = None) -> None:
+    """
+    The command-line interface for the Auryn metaprogramming engine.
+
+    Args:
+        argv: The command line arguments (default is sys.argv).
+    """
+    parser = argparse.ArgumentParser(description="Auryn metaprogramming engine")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    generate_parser = subparsers.add_parser("generate", help="generate code from a template")
+    generate_parser.add_argument("template", help="template path")
+    generate_parser.add_argument("-c", "--context", default=None, help="context path")
+    generate_parser.add_argument("-l", "--load", action="append", help="additional plugin paths or names")
+    generate_parser.add_argument(
+        "-n",
+        "--no-core",
+        action="store_true",
+        default=False,
+        help="do not load core plugin",
+    )
+    generate_parser.add_argument(
+        "-s",
+        "--standalone",
+        action="store_true",
+        default=False,
+        help="generate standalone code",
+    )
+    generate_parser.add_argument(
+        "context_kwargs",
+        nargs="*",
+        default=[],
+        help="additional context as key=value pairs",
+    )
+
+    run_parser = subparsers.add_parser("execute", help="generate code from a template and execute it")
+    run_parser.add_argument("template", help="template path")
+    run_parser.add_argument("-c", "--context", default=None, help="context path")
+    run_parser.add_argument("-l", "--load", action="append", help="additional plugin paths or names")
+    run_parser.add_argument(
+        "-n",
+        "--no-core",
+        action="store_true",
+        default=False,
+        help="do not load core plugin",
+    )
+    run_parser.add_argument(
+        "context_kwargs",
+        nargs="*",
+        default=[],
+        help="additional context as key=value pairs",
+    )
+
+    run_standalone_parser = subparsers.add_parser("execute-standalone", help="execute standalone generated code")
+    run_standalone_parser.add_argument("code", help="standalone code path")
+    run_standalone_parser.add_argument("-c", "--context", default=None, help="context path")
+    run_standalone_parser.add_argument(
+        "context_kwargs",
+        nargs="*",
+        default=[],
+        help="additional context as key=value pairs",
+    )
+
+    args = parser.parse_args(argv)
+
+    try:
+        match args.command:
+            case "generate":
+                context = _parse_context(args.context, args.context_kwargs)
+                code = generate(
+                    pathlib.Path(args.template).absolute(),
+                    context,
+                    load=args.load,
+                    load_core=not args.no_core,
+                    standalone=args.standalone,
+                )
+                print(code)
+
+            case "execute":
+                context = _parse_context(args.context, args.context_kwargs)
+                output = execute(
+                    pathlib.Path(args.template).absolute(),
+                    context,
+                    load=args.load,
+                    load_core=not args.no_core,
+                )
+                print(output)
+
+            case "execute-standalone":
+                context = _parse_context(args.context, args.context_kwargs)
+                output = execute_standalone(
+                    pathlib.Path(args.code).absolute(),
+                    context,
+                )
+                print(output)
+
+    except Error as error:
+        print(error.report(), file=sys.stderr)
+        exit(1)
+
+
+def _parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str, Any]:
+    context: dict[str, Any] = {}
     if path:
         path = pathlib.Path(path)
         context.update(json.loads(path.read_text()))
@@ -22,99 +123,3 @@ def parse_context(path: str | pathlib.Path | None, args: list[str]) -> dict[str,
         except json.JSONDecodeError:
             context[key] = value
     return context
-
-
-def cli(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Auryn metaprogramming engine")
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    transpile_parser = subparsers.add_parser("transpile", help="transpile a template")
-    transpile_parser.add_argument("path", help="template path")
-    transpile_parser.add_argument("-c", "--context", default=None, help="context path")
-    transpile_parser.add_argument("-S", "--add-source-comments", action="store_true", help="add source comments")
-    transpile_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
-    transpile_parser.add_argument(
-        "-n",
-        "--no-common",
-        action="store_true",
-        default=False,
-        help="do not load common meta-module",
-    )
-    transpile_parser.add_argument(
-        "-s",
-        "--standalone",
-        action="store_true",
-        default=False,
-        help="generate standalone code",
-    )
-    transpile_parser.add_argument(
-        "context_kwargs",
-        nargs="*",
-        default=[],
-        help="additional context as key=value pairs",
-    )
-
-    render_parser = subparsers.add_parser("render", help="render a template")
-    render_parser.add_argument("path", help="template path")
-    render_parser.add_argument("-c", "--context", default=None, help="context path")
-    render_parser.add_argument("-l", "--load", action="append", help="additional meta-module path or name")
-    render_parser.add_argument(
-        "-n",
-        "--no-common",
-        action="store_true",
-        default=False,
-        help="do not load common meta-module",
-    )
-    render_parser.add_argument(
-        "context_kwargs",
-        nargs="*",
-        default=[],
-        help="additional context as key=value pairs",
-    )
-
-    evaluate_parser = subparsers.add_parser("evaluate", help="evaluate junk code")
-    evaluate_parser.add_argument("path", help="junk code path")
-    evaluate_parser.add_argument("-c", "--context", default=None, help="context path")
-    evaluate_parser.add_argument(
-        "context_kwargs",
-        nargs="*",
-        default=[],
-        help="additional context as key=value pairs",
-    )
-
-    args = parser.parse_args(argv)
-
-    try:
-        match args.command:
-            case "transpile":
-                context = parse_context(args.context, args.context_kwargs)
-                code = transpile(
-                    pathlib.Path(args.path).absolute(),
-                    context,
-                    load_common=not args.no_common,
-                    add_source_comments=args.add_source_comments,
-                    load=args.load,
-                    standalone=args.standalone,
-                )
-                print(code)
-
-            case "render":
-                context = parse_context(args.context, args.context_kwargs)
-                output = render(
-                    pathlib.Path(args.path).absolute(),
-                    context,
-                    load=args.load,
-                    load_common=not args.no_common,
-                )
-                print(output)
-
-            case "evaluate":
-                context = parse_context(args.context, args.context_kwargs)
-                output = evaluate(
-                    pathlib.Path(args.path).absolute(),
-                    context,
-                )
-                print(output)
-    except EvaluationError as error:
-        print(error, file=sys.stderr)
-        exit(1)

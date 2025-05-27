@@ -1,102 +1,142 @@
 from typing import Iterator
 
-default_delimiters = "{ }"
 
+def interpolate(text: str, delimiters: str) -> Iterator[tuple[str, bool]]:
+    """
+    Interpolate a string into code and text snippets.
 
-def interpolate(s: str, delimiters: str | None = None) -> Iterator[tuple[str, bool]]:
-    if delimiters is None:
-        delimiters = default_delimiters
+        >>> for snippet, is_code in interpolate('{x} + {y} = {x + y}', '{ }'):
+        ...     print(snippet, is_code)
+        ('x', True)
+        (' + ', False)
+        ('y', True)
+        (' = ', False)
+        ('x + y', True)
+
+    Arguments:
+        text: The string to interpolate.
+        delimiters: The delimiters to use.
+
+    Returns:
+        An iterator over snippets and booleans indicating whether they are code.
+    """
     if delimiters.count(" ") != 1:
-        raise ValueError(f"invalid delimiters {delimiters!r} (expected space-separated pair)")
-    a, b = delimiters.split(" ")
-    if not a or not b or a == b:
-        raise ValueError(f"invalid delimiters {delimiters!r} (delimiters must be non-empty and distinct)")
-    if s == a or s == b or (a not in s and b not in s):
-        yield s, False
+        raise ValueError(f"invalid delimiters: {delimiters!r} (expected a space-separated pair)")
+    start, end = delimiters.split(" ")
+    if not start or not end or start == end:
+        raise ValueError(f"invalid delimiters: {delimiters!r} (delimiters must be non-empty and distinct)")
+    # If the text is a single delimiter, or doesn't contain both delimiters, there's nothing to do.
+    if text == start or text == end or (start not in text and end not in text):
+        yield text, False
         return
-    sL, aL, bL = len(s), len(a), len(b)
+    text_len, start_len, end_len = len(text), len(start), len(end)
     i = 0
-    text: list[str] = []
-    while i < sL:
-        if s[i : i + aL] == a:
-            if s[i + aL : i + 2 * aL] == a:
-                text.append(a)
-                i += 2 * aL
+    snippet: list[str] = []
+    while i < text_len:
+        if text[i : i + start_len] == start:
+            # If the start delimiter appears twice, escape it.
+            if text[i + start_len : i + 2 * start_len] == start:
+                snippet.append(start)
+                i += 2 * start_len
+            # Otherwise, return the snippet that accumulated so far and the code that follows.
             else:
-                fr = i + aL
-                to = skip_expression(s, a, b, fr)
-                code = s[fr:to].strip()
-                if text:
-                    yield "".join(text), False
-                    text.clear()
+                fr = i + start_len
+                to = _skip_expression(text, start, end, fr)
+                code = text[fr:to].strip()
+                if snippet:
+                    yield "".join(snippet), False
+                    snippet.clear()
                 yield code, True
-                i = to + bL
-        elif s[i : i + bL] == b:
-            if s[i + bL : i + 2 * bL] == b:
-                text.append(b)
-                i += 2 * bL
+                i = to + end_len
+        elif text[i : i + end_len] == end:
+            # If the end delimiter appears twice, escape it.
+            if text[i + end_len : i + 2 * end_len] == end:
+                snippet.append(end)
+                i += 2 * end_len
+            # Otherwise, we have an unmatched end delimiter.
             else:
-                raise ValueError(f"unable to interpolate {s!r}: unmatched {b!r} at offset {i}")
+                raise ValueError(f"unable to interpolate {text!r}: unmatched {end!r} at offset {i}")
         else:
-            text.append(s[i])
+            snippet.append(text[i])
             i += 1
-    if text:
-        yield "".join(text), False
+    if snippet:
+        yield "".join(snippet), False
 
 
-def parse_arguments(s: str) -> Iterator[str]:
-    sL, i = len(s), 0
-    text: list[str] = []
-    while i < sL:
-        if s[i] == " ":
-            if text:
-                yield "".join(text)
-                text.clear()
+def split(text: str) -> Iterator[str]:
+    """
+    Split a string by whitespace, respecting quoted strings.
+
+        >>> for snippet in split('flag word=value word="quoted value"'):
+        ...     print(snippet)
+        flag
+        word=value
+        word="quoted value"
+
+    Arguments:
+        text: The string to split.
+
+    Returns:
+        An iterator over snippets.
+    """
+    text_len, i = len(text), 0
+    snippets: list[str] = []
+    while i < text_len:
+        if text[i] == " ":
+            if snippets:
+                yield "".join(snippets)
+                snippets.clear()
             i += 1
-        elif s[i] in ["'", '"']:
-            to = skip_string(s, i)
-            text.append(s[i:to])
+        elif text[i] in ["'", '"']:
+            to = _skip_string(text, i)
+            snippets.append(text[i:to])
             i = to
         else:
-            text.append(s[i])
+            snippets.append(text[i])
             i += 1
-    if text:
-        yield "".join(text)
+    if snippets:
+        yield "".join(snippets)
 
 
-def skip_expression(s, a, b, i):
-    sL, aL, bL, i0 = len(s), len(a), len(b), i
+def _skip_expression(text: str, start: str, end: str, i: int) -> int:
+    text_len, start_len, end_len, offset = len(text), len(start), len(end), i
     depth = 1
-    while i < sL:
-        if s[i : i + aL] == a:
+    while i < text_len:
+        # Whenever the start delimiter is encountered, increase the depth.
+        if text[i : i + start_len] == start:
             depth += 1
-            i += aL
-        elif s[i : i + bL] == b:
+            i += start_len
+        # Whenever the end delimiter is encountered, decrease the depth.
+        elif text[i : i + end_len] == end:
             depth -= 1
+            # If the depth reaches 0, we're done.
             if depth == 0:
                 break
-            i += bL
-        elif s[i] in ["'", '"']:
-            i = skip_string(s, i)
+            i += end_len
+        # If a quote is encountered, skip the string to ignore any delimiters it might contain.
+        elif text[i] in ["'", '"']:
+            i = _skip_string(text, i)
         else:
             i += 1
-    else:
-        raise ValueError(f"unable to interpolate {s!r}: unmatched {a!r} at offset {i0 - aL}")
+    # If the depth never reached 0, we have an unmatched start delimiter.
+    if depth > 0:
+        raise ValueError(f"unable to interpolate {text!r}: unmatched {start!r} at offset {offset - start_len}")
     return i
 
 
-def skip_string(s, i):
-    sL, i0 = len(s), i
-    q = s[i]
+def _skip_string(text: str, i: int) -> int:
+    text_len, offset = len(text), i
+    quote = text[i]
     i += 1
-    while i < sL:
-        if s[i] == q:
+    while i < text_len:
+        if text[i] == quote:
             i += 1
             break
-        if s[i] == "\\":
+        # If a backslash is encountered, skip the next character to ignore escaped quotes.
+        if text[i] == "\\":
             i += 2
         else:
             i += 1
     else:
-        raise ValueError(f"unable to interpolate {s!r}: unterminated quote at offset {i0}")
+        raise ValueError(f"unable to interpolate {text!r}: unterminated quote at offset {offset}")
     return i

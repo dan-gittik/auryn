@@ -21,8 +21,8 @@ def cli() -> CLI:
     return cli
 
 
-def test_transpile(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+def test_generate(tmp_path: pathlib.Path, cli: CLI) -> None:
+    template_path = tmp_path / "template.aur"
     template_code = trim(
         """
         !for i in range(n):
@@ -31,7 +31,7 @@ def test_transpile(tmp_path: pathlib.Path, cli: CLI) -> None:
     )
     template_path.write_text(template_code)
 
-    received = cli("transpile", template_path)
+    received = cli("generate", template_path)
     expected = trim(
         """
         for i in range(n):
@@ -41,8 +41,8 @@ def test_transpile(tmp_path: pathlib.Path, cli: CLI) -> None:
     assert received == expected
 
 
-def test_render(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+def test_execute(tmp_path: pathlib.Path, cli: CLI) -> None:
+    template_path = tmp_path / "template.aur"
     template_code = trim(
         """
         !for i in range(n):
@@ -51,7 +51,7 @@ def test_render(tmp_path: pathlib.Path, cli: CLI) -> None:
     )
     template_path.write_text(template_code)
 
-    received = cli("render", template_path, "n=3")
+    received = cli("execute", template_path, "n=3")
     expected = trim(
         """
         line 0
@@ -63,12 +63,12 @@ def test_render(tmp_path: pathlib.Path, cli: CLI) -> None:
 
     context = tmp_path / "context.json"
     context.write_text(json.dumps({"n": 3}))
-    received = cli("render", template_path, "-c", context)
+    received = cli("execute", template_path, "-c", context)
     assert received == expected
 
 
 def test_non_json_context(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+    template_path = tmp_path / "template.aur"
     template_code = trim(
         """
         hello {name}
@@ -76,7 +76,7 @@ def test_non_json_context(tmp_path: pathlib.Path, cli: CLI) -> None:
     )
     template_path.write_text(template_code)
 
-    received = cli("render", template_path, "name=world")
+    received = cli("execute", template_path, "name=world")
     expected = trim(
         """
         hello world
@@ -86,14 +86,14 @@ def test_non_json_context(tmp_path: pathlib.Path, cli: CLI) -> None:
 
 
 def test_invalid_context(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+    template_path = tmp_path / "template.aur"
     template_path.write_text("")
     with pytest.raises(RuntimeError, match=r"invalid argument: name \(expected <key>=<value>\)"):
-        cli("render", template_path, "name")
+        cli("execute", template_path, "name")
 
 
-def test_evaluate(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+def test_execute_standalone(tmp_path: pathlib.Path, cli: CLI) -> None:
+    template_path = tmp_path / "template.aur"
     template_code = trim(
         """
         !for i in range(n):
@@ -102,11 +102,11 @@ def test_evaluate(tmp_path: pathlib.Path, cli: CLI) -> None:
     )
     template_path.write_text(template_code)
 
-    received = cli("transpile", template_path, "-s")
+    received = cli("generate", template_path, "-s")
     code_path = tmp_path / "code.py"
     code_path.write_text(received)
 
-    received = cli("evaluate", code_path, "n=3")
+    received = cli("execute-standalone", code_path, "n=3")
     expected = trim(
         """
         line 0
@@ -118,12 +118,12 @@ def test_evaluate(tmp_path: pathlib.Path, cli: CLI) -> None:
 
 
 def test_error(tmp_path: pathlib.Path, cli: CLI) -> None:
-    template_path = tmp_path / "template.txt"
+    template_path = tmp_path / "template.aur"
     template_code = trim(
         """
         !x
         """
     )
     template_path.write_text(template_code)
-    with pytest.raises(RuntimeError, match=r"Failed to evaluate junk at (.|\n)*?NameError: name 'x' is not defined"):
-        cli("render", template_path)
+    with pytest.raises(RuntimeError, match=r"Failed to execute GX(.|\n)*?NameError: name 'x' is not defined(.|\n)*"):
+        cli("execute", template_path)

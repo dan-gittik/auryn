@@ -1,6 +1,6 @@
 import inspect
 
-from auryn.utils import split_line
+from auryn.utils import split_indent
 
 
 def trim(text: str) -> str:
@@ -9,7 +9,7 @@ def trim(text: str) -> str:
     output: list[str] = []
     for line in text.splitlines():
         if indent is None:
-            indent, content = split_line(line)
+            indent, content = split_indent(line)
             output.append(content)
         else:
             output.append(line[indent:])

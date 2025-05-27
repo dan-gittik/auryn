@@ -2,114 +2,161 @@ import re
 
 import pytest
 
-from auryn.interpolate import interpolate, parse_arguments
+from auryn import interpolate, split
 
 
 def test_interpolate():
-    assert list(interpolate("{x} + {y} = {x + y}")) == [
+    received = interpolate("{x} + {y} = {x + y}", "{ }")
+    expected = [
         ("x", True),
         (" + ", False),
         ("y", True),
         (" = ", False),
         ("x + y", True),
     ]
-    assert list(interpolate("<% x %> + <% y %> = <% x + y %>", "<% %>")) == [
+    assert list(received) == expected
+
+    received = interpolate("<% x %> + <% y %> = <% x + y %>", "<% %>")
+    expected = [
         ("x", True),
         (" + ", False),
         ("y", True),
         (" = ", False),
         ("x + y", True),
     ]
+    assert list(received) == expected
 
 
-def test_interpolate_nested():
-    assert list(interpolate("{ {'x': 1, 'y': 2}['x'] } == 1")) == [
+def test_interpolate_nested_delimiters():
+    received = interpolate("{ {'x': 1, 'y': 2}['x'] } == 1", "{ }")
+    expected = [
         ("{'x': 1, 'y': 2}['x']", True),
         (" == 1", False),
     ]
+    assert list(received) == expected
 
 
-def test_interpolate_delimiter_in_string():
-    assert list(interpolate("{ {'{': 1}.get('}') } is None")) == [
+def test_interpolate_nested_delimiters_in_string():
+    received = interpolate("{ {'{': 1}.get('}') } is None", "{ }")
+    expected = [
         ("{'{': 1}.get('}')", True),
         (" is None", False),
     ]
+    assert list(received) == expected
 
 
 def test_interpolate_escaping_in_string():
-    assert list(interpolate(r"""{ {'\'{'}.get("\"{") } is None""")) == [
+    received = interpolate(r"""{ {'\'{'}.get("\"{") } is None""", "{ }")
+    expected = [
         ("{'\\'{'}.get(\"\\\"{\")", True),
         (" is None", False),
     ]
+    assert list(received) == expected
 
 
 def test_interpolate_edge_cases():
-    for s in ["", "{", "}", "a"]:
-        assert list(interpolate(s)) == [(s, False)]
+    for text in ["", "{", "}", "a"]:
+        received = interpolate(text, "{ }")
+        assert list(received) == [(text, False)]
 
 
 def test_interpolate_escape():
-    assert list(interpolate("{{x}}")) == [("{x}", False)]
-    assert list(interpolate("{{")) == [("{", False)]
-    assert list(interpolate("}}")) == [("}", False)]
-    assert list(interpolate("{{{x}}}")) == [("{", False), ("x", True), ("}", False)]
-    assert list(interpolate("{{{{x}}}}", "{ }")) == [("{{x}}", False)]
+    received = interpolate("{{x}}", "{ }")
+    expected = [("{x}", False)]
+    assert list(received) == expected
+
+    received = interpolate("{{", "{ }")
+    expected = [("{", False)]
+    assert list(received) == expected
+
+    received = interpolate("}}", "{ }")
+    expected = [("}", False)]
+    assert list(received) == expected
+
+    received = interpolate("{{{x}}}", "{ }")
+    expected = [("{", False), ("x", True), ("}", False)]
+    assert list(received) == expected
+
+    received = interpolate("{{{{x}}}}", "{ }")
+    expected = [("{{x}}", False)]
+    assert list(received) == expected
 
 
 def test_interpolate_invalid_delimiters():
     for delimiters in ["<%", "{}", "<% %> <%>"]:
         with pytest.raises(
             ValueError,
-            match=rf"invalid delimiters {delimiters!r} \(expected space-separated pair\)",
+            match=rf"invalid delimiters: {delimiters!r} \(expected a space-separated pair\)",
         ):
-            list(interpolate("", delimiters))
+            received = interpolate("", delimiters)
+            list(received)
+
     for delimiters in ["{ ", " }", "| |"]:
         with pytest.raises(
             ValueError,
-            match=rf"invalid delimiters {delimiters!r} \(delimiters must be non-empty and distinct\)",
+            match=rf"invalid delimiters: {delimiters!r} \(delimiters must be non-empty and distinct\)",
         ):
-            list(interpolate("", delimiters))
+            received = interpolate("", delimiters)
+            list(received)
 
 
-def test_interpolate_unmatched_open_delimiter():
-    for s, delimiters in [
+def test_interpolate_unmatched_start_delimiter():
+    for text, delimiters in [
         ("{x} + {y} = {x + y", "{ }"),
         ("<% x %> + <% y %> = <% x + y", "<% %>"),
     ]:
-        a, _ = delimiters.split(" ")
-        offset = s.rfind(a)
+        start, _ = delimiters.split(" ")
+        offset = text.rfind(start)
         with pytest.raises(
             ValueError,
-            match=re.escape(f"unable to interpolate {s!r}: unmatched {a!r} at offset {offset}"),
+            match=re.escape(f"unable to interpolate {text!r}: unmatched {start!r} at offset {offset}"),
         ):
-            list(interpolate(s, delimiters))
+            received = interpolate(text, delimiters)
+            list(received)
 
 
-def test_interpolate_unmatched_close_delimiter():
-    for s, delimiters in [
+def test_interpolate_unmatched_end_delimiter():
+    for text, delimiters in [
         ("{x} + {y} = x + y}", "{ }"),
         ("<% x %> + <% y %> = x + y %>", "<% %>"),
     ]:
-        _, b = delimiters.split(" ")
-        offset = s.rfind(b)
+        _, end = delimiters.split(" ")
+        offset = text.rfind(end)
         with pytest.raises(
             ValueError,
-            match=re.escape(f"unable to interpolate {s!r}: unmatched {b!r} at offset {offset}"),
+            match=re.escape(f"unable to interpolate {text!r}: unmatched {end!r} at offset {offset}"),
         ):
-            list(interpolate(s, delimiters))
+            received = interpolate(text, delimiters)
+            list(received)
 
 
 def test_interpolate_unterminated_string():
-    for s in ["{'hello}", '{"hello}']:
+    for text in ["{'hello}", '{"hello}']:
         with pytest.raises(
             ValueError,
-            match=re.escape(f"unable to interpolate {s!r}: unterminated quote at offset 1"),
+            match=re.escape(f"unable to interpolate {text!r}: unterminated quote at offset 1"),
         ):
-            list(interpolate(s))
+            received = interpolate(text, "{ }")
+            list(received)
 
 
-def test_parse_arguments():
-    assert list(parse_arguments("")) == []
-    assert list(parse_arguments("x")) == ["x"]
-    assert list(parse_arguments("x y")) == ["x", "y"]
-    assert list(parse_arguments("x y z")) == ["x", "y", "z"]
+def test_split():
+    received = split("")
+    expected = []
+    assert list(received) == expected
+
+    received = split("flag")
+    expected = ["flag"]
+    assert list(received) == expected
+
+    received = split("flag key=value")
+    expected = ["flag", "key=value"]
+    assert list(received) == expected
+
+    received = split("flag key=value key='quoted value'")
+    expected = ["flag", "key=value", "key='quoted value'"]
+    assert list(received) == expected
+
+    received = split('flag key=value key="quoted value"')
+    expected = ["flag", "key=value", 'key="quoted value"']
+    assert list(received) == expected

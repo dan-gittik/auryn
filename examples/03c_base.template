@@ -1,8 +1,0 @@
-<html>
-    <head>
-        %insert head
-    </head>
-    <body>
-        %insert body
-    </body>
-</html>
