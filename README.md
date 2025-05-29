@@ -268,7 +268,8 @@ For example:
 ...     !for i in range(n):
 ...         line {i}
 ...     """,
-...     n=3)
+...     n=3,
+... )
 line 0
 line 1
 line 2
