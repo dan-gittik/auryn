@@ -11,8 +11,13 @@ A metaprogramming engine for extensible templating and code generation.
 - [Ovreview](#overview)
     - [Generation/Execution](#generationexecution)
     - [Standalone Code](#standalone-code)
-    - [Core Macros](#core-macros)
-    - [Filesystem Macros](#filesystem-macros)
+    - [Templates](#templates)
+    - [Macros](#macros)
+        - [Template Inclusion](#template-inclusion)
+        - [Template Extension](#template-extension)
+        - [Evaluation and Interpolation Control](#evaluation-and-interpolation-control)
+        - [Parameter Definition, Inlining and Backtracking](#parameter-definition-inlining-and-backtracking)
+        - [Filesystem Macros](#filesystem-macros)
     - [Advanced Syntax](#advanced-syntax)
 - [Plugin Development](#plugin-development)
     - [Understanding Errors](#understanding-errors)
@@ -346,7 +351,7 @@ examples:
 
 We effectively end up with a template identical to `loop.aur`.
 
-### Core Macros
+### Macros
 
 Auryn's strength is its extensibility: we can write Python **plugins** that extend its generation through **macros**,
 and its execution through **hooks**. Before we talk about it, however, common patterns are already implemented as part
@@ -528,7 +533,7 @@ Similarly, `%raw` can be used to mark an entire file, or a nested block of lines
         %stop
 ```
 
-### Parameter Definition, Inlining and Backtracking
+#### Parameter Definition, Inlining and Backtracking
 
 So far, we wrote templates that expected `n` to be available during execution, i.e. passed to `execute` along with the
 template; if it wasn't, we'd get an `ExecutionError` around the `NameError` that is raised when attempting to run the
@@ -640,7 +645,7 @@ adds content to a given bookmark later on:
 </html>
 ```
 
-### Filesystem Macros
+#### Filesystem Macros
 
 Another builtin plugin lets us generate directory structures. For example:
 
