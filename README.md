@@ -8,7 +8,7 @@ A metaprogramming engine for extensible templating and code generation.
     - [Template Composition](#template-composition)
     - [Recursive Code Generation](#recursive-code-generation)
     - [Directory Structure Generation](#directory-structure-generation)
-- [Ovreview](#overview)
+- [Overview](#overview)
     - [Generation/Execution](#generationexecution)
     - [Standalone Code](#standalone-code)
     - [Templates](#templates)
