@@ -251,7 +251,7 @@ Auryn works in two **phases**:
 2. **Execution**: run the **generated code** to produce an **output**.
 
 This is a bit mind-bending; to appreciate the motivation and get a gentler introduction to the subject, check out 
-[A Templating Engine in 20 Lines](#docs/templating-engine-in-20-lines.md).
+[A Templating Engine in 20 Lines](docs/templating-engine-in-20-lines.md).
 
 Templates are parsed line by lines, where each line can be:
 
