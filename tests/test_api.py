@@ -295,7 +295,7 @@ def test_load_builtin_plugin(tmp_path: pathlib.Path) -> None:
     plugin_path.write_text(plugin_code)
 
     try:
-        GX.plugin_directories.append(tmp_path)
+        GX.add_plugins_directory(tmp_path)
         received = execute(
             """
             %hello world
@@ -403,7 +403,7 @@ def test_load_with_import(tmp_path: pathlib.Path) -> None:
 def test_load_error(tmp_path: pathlib.Path) -> None:
     plugin_path = tmp_path / "plugin.py"
     plugin_path.touch()
-    GX.plugin_directories.append(tmp_path)
+    GX.add_plugins_directory(tmp_path)
     try:
         with pytest.raises(
             ValueError,

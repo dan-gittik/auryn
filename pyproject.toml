@@ -1,6 +1,6 @@
 [project]
 name = "auryn"
-version = "1.0.0"
+version = "1.0.1"
 description = "The Auryn Metaprogramming Engine"
 authors = [
     {name = "Dan Gittik", email = "dan.gittik@gmail.com"}

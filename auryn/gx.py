@@ -149,6 +149,16 @@ class GX:
             file.unlink()
 
     @classmethod
+    def add_plugins_directory(cls, directory: str | pathlib.Path) -> None:
+        """
+        Add a directory to the list of directories to search for plugins.
+
+        Arguments:
+            directory: The directory to add.
+        """
+        cls.plugin_directories.append(pathlib.Path(directory))
+
+    @classmethod
     def parse(cls, template: TemplateArgument, *, load_core: bool | None = None, stack_level: int = 0) -> Self:
         """
         Create a generation/execution from a template.
