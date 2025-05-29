@@ -185,7 +185,6 @@ We can generate validation code *recursively*:
 >>> output = auryn.execute(
 ...     """
 ...     %incldue typechecking.aur
-...
 ...     def validate(
 ...         !for key in model:
 ...             {key},
